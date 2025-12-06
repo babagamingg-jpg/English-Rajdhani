@@ -2,20 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { MessageRole, ChatMessage } from '../types';
 
 // Initialize Gemini client
-// Note: API Key must be provided in environment variables or replaced here for local testing safely.
-const apiKey = process.env.API_KEY || ''; 
-const ai = new GoogleGenAI({ apiKey });
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const streamGeminiResponse = async (
   history: ChatMessage[],
   newMessage: string,
   onChunk: (text: string) => void
 ): Promise<void> => {
-  if (!apiKey) {
-    onChunk("Error: API Key is missing. Please configure the environment.");
-    return;
-  }
-
   try {
     const model = 'gemini-2.5-flash';
     
