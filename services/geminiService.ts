@@ -1,16 +1,23 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MessageRole, ChatMessage } from '../types';
 
-let ai: GoogleGenAI | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
 const getGenAIClient = () => {
-  if (ai) {
-    return ai;
+  if (genAI) {
+    return genAI;
   }
 
-  // The API key must be obtained exclusively from the environment variable process.env.API_KEY
-  ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  return ai;
+  // @ts-ignore
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    console.error("VITE_GEMINI_API_KEY is not set in environment variables");
+    // We don't throw immediately to allow UI to handle the error gracefully via the catch block below
+  }
+
+  genAI = new GoogleGenerativeAI(apiKey || "");
+  return genAI;
 };
 
 export const streamGeminiResponse = async (
@@ -20,33 +27,29 @@ export const streamGeminiResponse = async (
 ): Promise<void> => {
   try {
     const client = getGenAIClient();
-    
-    // Transform history to Gemini Content format
-    // Map recent history (last 10 messages) to the structure expected by generateContent
-    const contents = history.slice(-10).map(msg => ({
+    // Use gemini-1.5-flash which is the standard fast model for the stable SDK
+    const model = client.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: "You are 'Raj', a helpful and encouraging English Tutor for Class 11 and 12 students in India using the 'EnglishRajDanHi' platform. Keep answers concise, educational, and friendly. Use simple English."
+    });
+
+    // Transform history to the format expected by startChat
+    // @google/generative-ai expects { role: 'user' | 'model', parts: [{ text: string }] }
+    const chatHistory = history.map(msg => ({
       role: msg.role === MessageRole.USER ? 'user' : 'model',
       parts: [{ text: msg.text }],
     }));
 
-    // Add the current new message to the conversation
-    contents.push({
-      role: 'user',
-      parts: [{ text: newMessage }],
+    const chat = model.startChat({
+      history: chatHistory,
     });
 
-    // Use gemini-2.5-flash for basic text tutoring tasks
-    const response = await client.models.generateContentStream({
-      model: "gemini-2.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: "You are 'Raj', a helpful and encouraging English Tutor for Class 11 and 12 students in India using the 'EnglishRajDanHi' platform. Keep answers concise, educational, and friendly. Use simple English.",
-      }
-    });
+    const result = await chat.sendMessageStream(newMessage);
 
-    for await (const chunk of response) {
-      const c = chunk as GenerateContentResponse;
-      if (c.text) {
-        onChunk(c.text);
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+      if (chunkText) {
+        onChunk(chunkText);
       }
     }
   } catch (error) {
