@@ -6,8 +6,9 @@ const Header: React.FC = () => {
   const location = useLocation();
   const isHome = location.pathname === '/';
   
-  // Check if current route is Class Details or Chapter Pages to hide global header for immersive design
-  const isImmersivePage = /^\/class\/\d+$/.test(location.pathname) || /^\/chapter\/.*$/.test(location.pathname);
+  // Check if current route is Class Details (including sub-pages like /book, /grammar) or Chapter Pages
+  // Using .* ensures we catch /class/12, /class/12/book, etc.
+  const isImmersivePage = /^\/class\/.*$/.test(location.pathname) || /^\/chapter\/.*$/.test(location.pathname);
 
   const navItems = [
     { label: 'Home', path: '/', icon: 'home' },
@@ -25,7 +26,7 @@ const Header: React.FC = () => {
     }`;
   };
 
-  // Hide header completely for Immersive pages (Class Details, Summary, Quiz)
+  // Hide header completely for Immersive pages (Class Details, Summary, Quiz, Book, Grammar)
   if (isImmersivePage) {
     return null;
   }
