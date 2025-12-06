@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { MessageRole, ChatMessage } from '../types';
 
 // Initialize Gemini client
-// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+// The API key must be obtained exclusively from the environment variable.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const streamGeminiResponse = async (
