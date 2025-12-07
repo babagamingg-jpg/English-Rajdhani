@@ -8,9 +8,10 @@ const Header: React.FC = () => {
   const isHome = pathname === '/';
   
   // Check if current route is Class Details (including sub-pages like /book, /grammar) or Chapter Pages
-  // Using startsWith is more robust than regex for ensuring all sub-paths are caught
-  // This covers /class/11, /class/12/book, /class/12/grammar, /chapter/xyz/summary, etc.
-  const isImmersivePage = pathname.startsWith('/class/') || pathname.startsWith('/chapter/');
+  // Using .toLowerCase() and .includes() to be extremely robust against any routing variations
+  // This ensures the header is hidden for /class/12, /class/12/book, /chapter/xyz, etc.
+  const path = pathname.toLowerCase();
+  const isImmersivePage = path.includes('/class/') || path.includes('/chapter/');
 
   const navItems = [
     { label: 'Home', path: '/', icon: 'home' },
