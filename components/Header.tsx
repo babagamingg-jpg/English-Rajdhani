@@ -4,11 +4,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const isHome = location.pathname === '/';
+  const pathname = location.pathname;
+  const isHome = pathname === '/';
   
   // Check if current route is Class Details (including sub-pages like /book, /grammar) or Chapter Pages
-  // Using .* ensures we catch /class/12, /class/12/book, etc.
-  const isImmersivePage = /^\/class\/.*$/.test(location.pathname) || /^\/chapter\/.*$/.test(location.pathname);
+  // Using startsWith is more robust than regex for ensuring all sub-paths are caught
+  // This covers /class/11, /class/12/book, /class/12/grammar, /chapter/xyz/summary, etc.
+  const isImmersivePage = pathname.startsWith('/class/') || pathname.startsWith('/chapter/');
 
   const navItems = [
     { label: 'Home', path: '/', icon: 'home' },

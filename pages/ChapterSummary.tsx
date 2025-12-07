@@ -139,7 +139,8 @@ const ChapterSummary: React.FC = () => {
       ? JSON.parse(chapter.content) 
       : chapter.content;
 
-    const { summary, keyPoints, importantTerms, text } = contentData;
+    // Supports both old and new JSON formats
+    const { summary, keyPoints, importantTerms, text, sections, vocabulary, author } = contentData;
 
     // Helper for cards inside the content
     const cardClass = theme === 'default' 
@@ -162,28 +163,63 @@ const ChapterSummary: React.FC = () => {
           className={`space-y-10 max-w-3xl mx-auto transition-all duration-200`}
           style={containerStyle}
         >
+            {/* Author Name (New Format) */}
+            {author && (
+              <div className="text-center opacity-70 italic -mt-4 mb-8">
+                By {author}
+              </div>
+            )}
             
-            {/* Main Summary Text */}
-            <div 
-              className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''} transition-colors duration-500`}
-              // We set explicit 1em here so it respects the parent's pixel size
-              style={{ fontSize: '1em' }}
-            >
-                 {summary ? (
-                     <p className="opacity-90 leading-relaxed">
-                        <span className="text-[1.5em] font-bold mr-1 float-left leading-none">
-                            {summary.charAt(0)}
-                        </span>
-                        {summary.slice(1)}
-                     </p>
-                 ) : (
-                    text && text.split('\n').map((para: string, i: number) => (
-                        <p key={i} className="mb-4 opacity-90 leading-relaxed">{para}</p>
-                    ))
-                 )}
-            </div>
+            {/* NEW FORMAT: Sections (Line by Line) */}
+            {sections && Array.isArray(sections) && sections.length > 0 && (
+              <div className="space-y-12">
+                {sections.map((section: any, idx: number) => (
+                  <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
+                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
+                       {section.isImportant && <span className="material-symbols-outlined text-amber-500" title="Important for Exam">star</span>}
+                       {section.title}
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {section.lines.map((line: any, lIdx: number) => (
+                        <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
+                           <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
+                           {line.hindiTranslation && (
+                             <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
+                               {line.hindiTranslation}
+                             </p>
+                           )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {/* Key Points Section */}
+            {/* LEGACY FORMAT: Main Summary Text */}
+            {(summary || text) && !sections && (
+              <div 
+                className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''} transition-colors duration-500`}
+                // We set explicit 1em here so it respects the parent's pixel size
+                style={{ fontSize: '1em' }}
+              >
+                  {summary ? (
+                      <p className="opacity-90 leading-relaxed">
+                          <span className="text-[1.5em] font-bold mr-1 float-left leading-none">
+                              {summary.charAt(0)}
+                          </span>
+                          {summary.slice(1)}
+                      </p>
+                  ) : (
+                      text && text.split('\n').map((para: string, i: number) => (
+                          <p key={i} className="mb-4 opacity-90 leading-relaxed">{para}</p>
+                      ))
+                  )}
+              </div>
+            )}
+
+            {/* LEGACY FORMAT: Key Points Section */}
             {keyPoints && Array.isArray(keyPoints) && keyPoints.length > 0 && (
                 <div className={`rounded-3xl p-6 md:p-8 ${cardClass} transition-colors duration-500`}>
                     <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-600 dark:text-indigo-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
@@ -200,8 +236,32 @@ const ChapterSummary: React.FC = () => {
                 </div>
             )}
 
-            {/* Vocabulary Section */}
-            {importantTerms && typeof importantTerms === 'object' && Object.keys(importantTerms).length > 0 && (
+            {/* NEW FORMAT: Vocabulary (Array) */}
+            {vocabulary && Array.isArray(vocabulary) && vocabulary.length > 0 && (
+                <div>
+                    <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
+                       <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {vocabulary.map((item: any, idx: number) => (
+                            <div key={idx} className={`rounded-2xl p-5 ${cardClass} transition-colors duration-500`}>
+                                <span className={`block font-bold mb-1 ${theme === 'default' ? 'text-emerald-700 dark:text-emerald-400' : ''}`} style={{ fontSize: '1.1em' }}>
+                                    {item.term}
+                                </span>
+                                <span className="opacity-90 leading-relaxed text-[0.95em] block">{item.englishMeaning}</span>
+                                {item.hindiMeaning && (
+                                   <span className={`opacity-75 leading-relaxed text-[0.85em] block mt-1 ${theme === 'default' ? 'text-gray-500 dark:text-gray-400' : ''}`}>
+                                      {item.hindiMeaning}
+                                   </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* LEGACY FORMAT: Vocabulary (Object) */}
+            {importantTerms && typeof importantTerms === 'object' && Object.keys(importantTerms).length > 0 && !vocabulary && (
                 <div>
                     <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
                        <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
