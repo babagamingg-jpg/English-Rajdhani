@@ -5,20 +5,45 @@ import { ChapterEntity } from '../types';
 
 const BookChapters: React.FC = () => {
   const navigate = useNavigate();
-  const { classId } = useParams<{ classId: string }>();
+  const { classId, bookType, sectionType } = useParams<{ classId: string; bookType: string; sectionType?: string }>();
   const [chapters, setChapters] = useState<ChapterEntity[]>([]);
-  const [className, setClassName] = useState<string>(`Class ${classId}`);
   const [loading, setLoading] = useState(true);
+
+  // Derive Display Info
+  const isRainbow = bookType !== 'story-of-english';
+  const rainbowPart = classId === '11' ? '1' : '2';
+  
+  let bookTitle = isRainbow ? `Rainbow Part - ${rainbowPart}` : 'Story of English';
+  let bookSubtitle = 'Literature';
+  
+  if (isRainbow) {
+    if (sectionType === 'prose') {
+        bookSubtitle = 'Prose Section';
+    } else if (sectionType === 'poetry') {
+        bookSubtitle = 'Poetry Section';
+    } else {
+        bookSubtitle = 'Prose & Poetry';
+    }
+  }
+  
+  // Theme colors
+  const themeGradient = isRainbow 
+    ? (sectionType === 'poetry' 
+        ? 'from-pink-500 to-rose-600 dark:from-pink-900 dark:to-rose-700' 
+        : 'from-blue-500 to-indigo-600 dark:from-blue-900 dark:to-indigo-700')
+    : 'from-teal-500 to-emerald-600 dark:from-teal-900 dark:to-emerald-700';
+
+  const accentColor = isRainbow ? (sectionType === 'poetry' ? 'pink' : 'blue') : 'teal';
 
   useEffect(() => {
     const fetchChapters = async () => {
       try {
         setLoading(true);
         
-        // 1. Get the class UUID and Name based on the grade
+        // 1. Get the class UUID
         const { data: classData, error: classError } = await supabase
           .from('classes')
-          .select('id, name')
+          .select('id')
           .eq('grade', classId)
           .single();
 
@@ -27,18 +52,31 @@ const BookChapters: React.FC = () => {
           setChapters([]);
           return;
         }
-        
-        if (classData.name) {
-            setClassName(classData.name);
-        }
 
-        // 2. Fetch chapters (excluding Grammar)
-        const { data, error } = await supabase
+        // 2. Build Query
+        let query = supabase
           .from('chapters')
           .select('*')
           .eq('class_id', classData.id)
-          .neq('section_type', 'grammar') 
-          .order('section_type', { ascending: false }) // Group Prose/Poetry
+          .neq('section_type', 'grammar'); // Always exclude grammar
+
+        if (isRainbow) {
+             // Rainbow logic: filter by prose/poetry if sectionType is present
+             if (sectionType === 'prose') {
+                 query = query.in('section_type', ['Prose', 'prose', 'Prose ']);
+             } else if (sectionType === 'poetry') {
+                 query = query.in('section_type', ['Poetry', 'poetry', 'Poetry ']);
+             } else {
+                 // Fallback: show everything if no specific section (shouldn't happen with new flow)
+                 query = query.in('section_type', ['Prose', 'Poetry', 'prose', 'poetry', 'Prose ', 'Poetry ']);
+             }
+        } else {
+             // Story of English contains everything else (typically 'Story of English' or 'Drama')
+             query = query.not('section_type', 'in', '("Prose","Poetry","prose","poetry","Prose ","Poetry ")');
+        }
+
+        const { data, error } = await query
+          .order('section_type', { ascending: false })
           .order('chapter_number', { ascending: true });
 
         if (error) {
@@ -56,33 +94,63 @@ const BookChapters: React.FC = () => {
     };
 
     fetchChapters();
-  }, [classId]);
+  }, [classId, isRainbow, sectionType]);
+
+  const handleBack = () => {
+    if (isRainbow) {
+        navigate(`/class/${classId}/rainbow-sections`);
+    } else {
+        navigate(`/class/${classId}/textbook-select`);
+    }
+  };
+
+  const getCurrentPath = () => {
+    const sectionPart = sectionType ? `/${sectionType}` : '';
+    return `/class/${classId}/book/${bookType}${sectionPart}`;
+  };
+
+  const handleReadClick = (e: React.MouseEvent, chapterId: string) => {
+    e.stopPropagation();
+    navigate(`/chapter/${chapterId}/read`, { state: { backPath: getCurrentPath() } });
+  };
 
   const handleSummaryClick = (e: React.MouseEvent, chapterId: string) => {
     e.stopPropagation();
-    navigate(`/chapter/${chapterId}/summary`, { state: { backPath: `/class/${classId}/book` } });
+    navigate(`/chapter/${chapterId}/summary`, { state: { backPath: getCurrentPath() } });
   };
 
   const handleTestClick = (e: React.MouseEvent, chapterId: string) => {
     e.stopPropagation();
-    navigate(`/chapter/${chapterId}/quiz`, { state: { backPath: `/class/${classId}/book` } });
+    navigate(`/chapter/${chapterId}/quiz`, { state: { backPath: getCurrentPath() } });
   };
 
   // Helper to determine badge style based on section type
   const getSectionBadge = (sectionType: string) => {
     const type = sectionType.toLowerCase();
+    
     if (type.includes('poetry') || type.includes('poem')) {
         return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 text-[10px] font-bold uppercase tracking-wide border border-pink-200 dark:border-pink-800/50">
-                <span className="material-symbols-outlined text-[12px]">feather</span>
+                <span className="material-symbols-outlined text-[12px]">history_edu</span>
                 Poetry
             </span>
         );
     }
+    
+    // Story of English / Supplementary
+    if (!type.includes('prose')) {
+       return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wide border border-teal-200 dark:border-teal-800/50">
+                <span className="material-symbols-outlined text-[12px]">menu_book</span>
+                {sectionType}
+            </span>
+        );
+    }
+
     // Default to Prose
     return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase tracking-wide border border-blue-200 dark:border-blue-800/50">
-            <span className="material-symbols-outlined text-[12px]">menu_book</span>
+            <span className="material-symbols-outlined text-[12px]">article</span>
             Prose
         </span>
     );
@@ -91,30 +159,32 @@ const BookChapters: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto no-scrollbar relative">
       
-      {/* Blue Header Section */}
-      <div className="bg-gradient-to-b from-[#4facfe] to-[#00f2fe] dark:from-blue-900 dark:to-blue-700 pb-16 pt-6 px-6 relative z-0">
-         <div className="absolute inset-0 bg-gradient-to-b from-blue-400 to-primary opacity-100 dark:opacity-80 z-[-1]"></div>
+      {/* Header Section */}
+      <div className={`bg-gradient-to-b ${themeGradient} pb-16 pt-6 px-6 relative z-0`}>
+         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/20 to-transparent opacity-50 z-[-1]"></div>
 
          <div className="max-w-2xl mx-auto w-full">
             <div className="flex justify-between items-start mb-6">
                 <button 
-                    onClick={() => navigate(`/class/${classId}`)}
+                    onClick={handleBack}
                     className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
                 >
                     <span className="material-symbols-outlined">arrow_back</span>
                 </button>
                 <div className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full border border-white/20">
-                    <span className="text-xs font-semibold text-white tracking-wide">{className}</span>
+                    <span className="text-xs font-semibold text-white tracking-wide">Class {classId}</span>
                 </div>
             </div>
 
             <div className="flex flex-col items-center justify-center text-center space-y-4 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg shadow-blue-900/10">
-                    <span className="material-symbols-outlined text-white text-3xl">library_books</span>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg shadow-black/10">
+                    <span className="material-symbols-outlined text-white text-3xl">
+                       {isRainbow ? (sectionType === 'poetry' ? 'history_edu' : 'auto_stories') : 'history_edu'}
+                    </span>
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-sm font-display">Textbook</h1>
-                    <p className="text-blue-50 text-sm font-medium opacity-90">Select a chapter to start reading</p>
+                    <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-sm font-display">{bookTitle}</h1>
+                    <p className="text-white/80 text-sm font-medium">{bookSubtitle}</p>
                 </div>
             </div>
          </div>
@@ -127,7 +197,7 @@ const BookChapters: React.FC = () => {
             <div className="flex justify-between items-end mb-6 px-1">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white font-display">Chapters</h2>
                 <div className="flex items-center gap-2">
-                   {loading && <span className="text-xs text-blue-500 animate-pulse">Syncing...</span>}
+                   {loading && <span className={`text-xs text-${accentColor}-500 animate-pulse`}>Syncing...</span>}
                    <span className="bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
                      {loading ? '...' : `${chapters.length} Items`}
                    </span>
@@ -138,7 +208,7 @@ const BookChapters: React.FC = () => {
                 {!loading && chapters.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                         <span className="material-symbols-outlined text-4xl mb-2 opacity-50">inbox</span>
-                        <p className="text-sm">No chapters found in database</p>
+                        <p className="text-sm">No chapters found</p>
                     </div>
                 )}
                 
@@ -166,6 +236,14 @@ const BookChapters: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2 self-end sm:self-center shrink-0 ml-16 sm:ml-2">
+                            <button 
+                                onClick={(e) => handleReadClick(e, chapter.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors border border-orange-100 dark:border-orange-800/50"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">chrome_reader_mode</span>
+                                <span className="text-[11px] font-bold">Full Chapter</span>
+                            </button>
+
                             <button 
                                 onClick={(e) => handleSummaryClick(e, chapter.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors border border-blue-100 dark:border-blue-800/50"

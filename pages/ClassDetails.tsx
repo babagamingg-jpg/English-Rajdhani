@@ -58,7 +58,7 @@ const ClassDetails: React.FC = () => {
             
             {/* Textbook Card */}
             <button 
-              onClick={() => navigate(`/class/${classId}/book`)}
+              onClick={() => navigate(`/class/${classId}/textbook-select`)}
               className="w-full bg-white dark:bg-zinc-800 rounded-2xl p-0 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden flex"
             >
               {/* Green Accent Strip */}

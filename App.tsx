@@ -4,10 +4,13 @@ import Header from './components/Header';
 import Home from './pages/Home';
 import AiTutor from './pages/AiTutor';
 import ClassDetails from './pages/ClassDetails';
+import SelectTextbook from './pages/SelectTextbook';
+import SelectRainbowSection from './pages/SelectRainbowSection';
 import BookChapters from './pages/BookChapters';
 import GrammarTopics from './pages/GrammarTopics';
 import ChapterSummary from './pages/ChapterSummary';
 import ChapterQuiz from './pages/ChapterQuiz';
+import ChapterRead from './pages/ChapterRead';
 
 // Placeholder components for routes not fully implemented
 const PlaceholderPage: React.FC<{ title: string; icon: string }> = ({ title, icon }) => (
@@ -35,10 +38,23 @@ const App: React.FC = () => {
             <Route path="/classes" element={<PlaceholderPage title="All Classes" icon="library_books" />} />
             
             <Route path="/class/:classId" element={<ClassDetails />} />
-            <Route path="/class/:classId/book" element={<BookChapters />} />
+            
+            {/* Textbook Flow */}
+            <Route path="/class/:classId/textbook-select" element={<SelectTextbook />} />
+            
+            {/* Rainbow Section Selection */}
+            <Route path="/class/:classId/rainbow-sections" element={<SelectRainbowSection />} />
+            
+            {/* Book Chapters - now handles optional sectionType for rainbow prose/poetry */}
+            <Route path="/class/:classId/book/:bookType/:sectionType?" element={<BookChapters />} />
+            
+            {/* Fallback for old route, redirect to selection or default to rainbow */}
+            <Route path="/class/:classId/book" element={<Navigate to="rainbow" relative="path" replace />} />
+
             <Route path="/class/:classId/grammar" element={<GrammarTopics />} />
             
             {/* New Routes for Database Content */}
+            <Route path="/chapter/:chapterId/read" element={<ChapterRead />} />
             <Route path="/chapter/:chapterId/summary" element={<ChapterSummary />} />
             <Route path="/chapter/:chapterId/quiz" element={<ChapterQuiz />} />
 
