@@ -11,7 +11,6 @@ import GrammarTopics from './pages/GrammarTopics';
 import ChapterSummary from './pages/ChapterSummary';
 import ChapterQuiz from './pages/ChapterQuiz';
 import ChapterRead from './pages/ChapterRead';
-import './services/firebase'; // Initialize Firebase
 
 // Component to ensure window scrolls to top on route change
 const ScrollToTop = () => {

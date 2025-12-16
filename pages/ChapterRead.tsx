@@ -105,7 +105,7 @@ const ChapterRead: React.FC = () => {
     switch (theme) {
       case 'sepia': return 'bg-[#f4ecd8]';
       case 'dark': return 'bg-[#121212]';
-      default: return 'bg-slate-100 dark:bg-slate-950'; // Changed from gray-50 to slate-100 for contrast
+      default: return 'bg-slate-100 dark:bg-slate-950';
     }
   };
 
@@ -161,9 +161,11 @@ const ChapterRead: React.FC = () => {
         ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200 dark:border-zinc-800' 
         : 'border border-current border-opacity-20 bg-transparent';
     
-    // Typography Colors (Matches Screenshot: Black English, Blue Hindi)
-    const textEnglish = theme === 'default' ? 'text-slate-900 dark:text-slate-100' : 'opacity-95';
-    const textHindi = theme === 'default' ? 'text-blue-700 dark:text-blue-400' : 'opacity-85';
+    // Typography Colors - INCREASED CONTRAST
+    // English: Gray-950 (Almost Black)
+    // Hindi: Blue-800 (Deep Blue)
+    const textEnglish = theme === 'default' ? 'text-gray-950 dark:text-slate-100' : 'opacity-95';
+    const textHindi = theme === 'default' ? 'text-blue-800 dark:text-blue-400' : 'opacity-85';
 
     const currentPixelSize = FONT_SIZES[fontSizeIndex];
     const containerStyle = { 
@@ -193,7 +195,7 @@ const ChapterRead: React.FC = () => {
                 {/* Metadata Header */}
                 <div className="text-center mb-8">
                      {chapter_metadata?.author && (
-                        <div className={`font-serif italic text-[1.1em] ${theme === 'default' ? 'text-slate-600 dark:text-slate-400' : 'opacity-70'}`}>
+                        <div className={`font-serif italic text-[1.1em] ${theme === 'default' ? 'text-gray-700 dark:text-slate-400' : 'opacity-70'}`}>
                             By {chapter_metadata.author}
                         </div>
                      )}
@@ -221,19 +223,18 @@ const ChapterRead: React.FC = () => {
                              {/* Lines Card */}
                              <div className={`p-6 rounded-2xl ${cardClass} space-y-6`}>
                                  {para.lines && para.lines.map((line: any, lIdx: number) => {
-                                     // Support both new 'english'/'hindi' keys and legacy 'englishLine'/'hindiTranslation'
                                      const enText = line.english || line.englishLine;
                                      const hiText = line.hindi || line.hindiTranslation;
                                      
                                      return (
                                          <div key={lIdx} className={`${lIdx > 0 ? 'pt-6 border-t border-dashed border-slate-100 dark:border-zinc-800' : ''}`}>
                                              {/* English - Bolder and Darker */}
-                                             <p className={`mb-3 leading-relaxed font-display text-justify font-semibold ${textEnglish}`}>
+                                             <p className={`mb-3 leading-relaxed font-display text-justify font-bold ${textEnglish}`}>
                                                  {enText}
                                              </p>
                                              {/* Hindi - Blue and Clear */}
                                              {hiText && (
-                                                 <p className={`text-[0.95em] leading-relaxed font-body text-justify font-medium ${textHindi}`}>
+                                                 <p className={`text-[0.95em] leading-relaxed font-body text-justify font-semibold ${textHindi}`}>
                                                      {hiText}
                                                  </p>
                                              )}
@@ -253,7 +254,7 @@ const ChapterRead: React.FC = () => {
                                 <span className="material-symbols-outlined text-xl">school</span>
                             </span>
                             <div>
-                                <h3 className={`text-2xl font-bold font-display ${theme === 'default' ? 'text-slate-800 dark:text-white' : 'opacity-90'}`}>Vocabulary</h3>
+                                <h3 className={`text-2xl font-bold font-display ${theme === 'default' ? 'text-gray-900 dark:text-white' : 'opacity-90'}`}>Vocabulary</h3>
                                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Key Words & Meanings</p>
                             </div>
                         </div>
@@ -270,19 +271,15 @@ const ChapterRead: React.FC = () => {
 
                                 return (
                                     <div key={gIdx} className={`p-5 rounded-2xl shadow-sm ${containerClass}`}>
-                                        {/* Header: Word */}
                                         <div className="flex items-start justify-between mb-3">
                                             <h4 className={`text-xl font-bold font-display tracking-tight ${wordColor}`}>
                                                 {item.word}
                                             </h4>
                                         </div>
-                                        {/* English Meaning */}
                                         <div className="text-[0.95em] opacity-90 mb-4 leading-snug font-medium">
                                             {item.meaning}
                                         </div>
-                                        {/* Divider */}
                                         <div className={`h-px w-full mb-3 ${theme === 'default' ? 'bg-black/5 dark:bg-white/5' : 'bg-current opacity-20'}`}></div>
-                                        {/* Hindi Meaning Pill */}
                                         <div className="flex justify-start">
                                             <div className={`px-3 py-1 rounded-lg text-[0.85em] font-body font-medium flex items-center gap-1.5 ${pillClass}`}>
                                                 <span className="text-[10px] uppercase opacity-70 tracking-wider">Hindi:</span>
@@ -335,16 +332,16 @@ const ChapterRead: React.FC = () => {
 
                   return (
                     <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
-                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-slate-800 dark:text-slate-200' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
+                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-gray-900 dark:text-slate-200' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
                         {section.title}
                       </h3>
                       
                       <div className="space-y-4">
                         {lines.map((line: any, lIdx: number) => (
                           <div key={lIdx} className={`p-6 rounded-2xl ${cardClass}`}>
-                            <p className={`mb-2 leading-relaxed font-display font-semibold ${textEnglish}`}>{line.englishLine}</p>
+                            <p className={`mb-2 leading-relaxed font-display font-bold ${textEnglish}`}>{line.englishLine}</p>
                             {line.hindiTranslation && (
-                              <p className={`text-[0.9em] leading-relaxed font-body font-medium ${textHindi}`}>
+                              <p className={`text-[0.9em] leading-relaxed font-body font-semibold ${textHindi}`}>
                                 {line.hindiTranslation}
                               </p>
                             )}
@@ -448,7 +445,7 @@ const ChapterRead: React.FC = () => {
          </div>
        </div>
 
-       {/* MAIN CONTENT AREA */}
+       {/* CONTENT AREA */}
        <div className="relative px-4 sm:px-6">
           {loading ? (
              <div className="max-w-3xl mx-auto space-y-6 opacity-50 pt-10">

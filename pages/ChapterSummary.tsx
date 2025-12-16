@@ -158,10 +158,10 @@ const ChapterSummary: React.FC = () => {
 
     const data = getParsedContent(chapter.content);
     
-    // Typography Colors
-    const textHeading = theme === 'default' ? 'text-slate-900 dark:text-white' : '';
-    const textBody = theme === 'default' ? 'text-slate-800 dark:text-slate-200' : '';
-    const textHindi = theme === 'default' ? 'text-blue-700 dark:text-blue-400' : '';
+    // Typography Colors - Darkened for visibility
+    const textHeading = theme === 'default' ? 'text-gray-950 dark:text-white' : '';
+    const textBody = theme === 'default' ? 'text-gray-900 dark:text-slate-200' : '';
+    const textHindi = theme === 'default' ? 'text-blue-800 dark:text-blue-400' : '';
     
     // --- GRAMMAR RENDERER ---
     if (data.isGrammar) {
@@ -192,7 +192,7 @@ const ChapterSummary: React.FC = () => {
                             
                             {/* Section Note */}
                             {(section.note || section.description) && (
-                                <p className="text-gray-700 dark:text-gray-300 italic bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border-l-4 border-amber-400 shadow-sm">
+                                <p className="text-gray-800 dark:text-gray-200 italic bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border-l-4 border-amber-400 shadow-sm font-medium">
                                     {section.note || section.description}
                                 </p>
                             )}
@@ -208,16 +208,16 @@ const ChapterSummary: React.FC = () => {
                                     )}
 
                                     <div className="space-y-3">
-                                        {concept.english_text && <p className={`font-semibold ${textBody}`}>{concept.english_text}</p>}
-                                        {concept.hindi_explanation && <p className={`text-sm font-medium ${textHindi}`}>{concept.hindi_explanation}</p>}
-                                        {concept.meaning && <p className={`font-semibold ${textBody}`}>{concept.meaning}</p>}
-                                        {concept.hindi && <p className={`text-sm font-medium ${textHindi}`}>{concept.hindi}</p>}
+                                        {concept.english_text && <p className={`font-bold ${textBody}`}>{concept.english_text}</p>}
+                                        {concept.hindi_explanation && <p className={`text-sm font-semibold ${textHindi}`}>{concept.hindi_explanation}</p>}
+                                        {concept.meaning && <p className={`font-bold ${textBody}`}>{concept.meaning}</p>}
+                                        {concept.hindi && <p className={`text-sm font-semibold ${textHindi}`}>{concept.hindi}</p>}
                                     </div>
 
                                     {(concept.examples || concept.example) && (
                                         <div className="mt-4 pt-3 border-t border-dashed border-slate-200 dark:border-slate-800">
-                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide mr-2">Ex:</span>
-                                            <span className="font-medium text-slate-600 dark:text-slate-300 italic">
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mr-2">Ex:</span>
+                                            <span className="font-medium text-slate-700 dark:text-slate-300 italic">
                                                 {Array.isArray(concept.examples) ? concept.examples.join(', ') : (concept.examples || concept.example)}
                                             </span>
                                         </div>
@@ -227,9 +227,9 @@ const ChapterSummary: React.FC = () => {
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                                             {concept.types.map((t: any, tIdx: number) => (
                                                 <div key={tIdx} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                    <div className="font-bold text-sm text-slate-800 dark:text-slate-200">{t.type}</div>
-                                                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1 font-medium">({t.hindi_meaning})</div>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{t.description}</div>
+                                                    <div className="font-bold text-sm text-slate-900 dark:text-slate-200">{t.type}</div>
+                                                    <div className="text-xs text-blue-700 dark:text-blue-400 mb-1 font-bold">({t.hindi_meaning})</div>
+                                                    <div className="text-xs text-slate-600 dark:text-slate-400 leading-snug">{t.description}</div>
                                                 </div>
                                             ))}
                                         </div>
@@ -244,24 +244,24 @@ const ChapterSummary: React.FC = () => {
                                         <div key={tIdx} className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
                                             <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                                 <div>
-                                                    <span className="font-bold text-base text-slate-900 dark:text-white">{type.type_name || type.name}</span>
-                                                    {(type.hindi_name || type.hindi) && <span className="ml-2 text-sm text-blue-600 dark:text-blue-400 font-medium">({type.hindi_name || type.hindi})</span>}
+                                                    <span className="font-bold text-base text-gray-950 dark:text-white">{type.type_name || type.name}</span>
+                                                    {(type.hindi_name || type.hindi) && <span className="ml-2 text-sm text-blue-700 dark:text-blue-400 font-bold">({type.hindi_name || type.hindi})</span>}
                                                 </div>
                                             </div>
                                             
                                             <div className="p-5 space-y-3">
                                                 {(type.definition || type.explanation) && (
-                                                    <p className={`text-base font-medium leading-relaxed ${textBody}`}>
+                                                    <p className={`text-base font-bold leading-relaxed ${textBody}`}>
                                                         {type.definition || type.explanation}
                                                     </p>
                                                 )}
                                                 {type.hindi_explanation && (
-                                                    <p className={`text-sm font-medium italic ${textHindi}`}>
+                                                    <p className={`text-sm font-semibold italic ${textHindi}`}>
                                                         {type.hindi_explanation}
                                                     </p>
                                                 )}
                                                 {type.rule && (
-                                                    <div className="flex gap-2 bg-blue-50 dark:bg-blue-900/10 p-2 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                                                    <div className="flex gap-2 bg-blue-50 dark:bg-blue-900/10 p-2 rounded text-xs text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
                                                         <span className="material-symbols-outlined text-sm">info</span>
                                                         {type.rule}
                                                     </div>
@@ -271,8 +271,8 @@ const ChapterSummary: React.FC = () => {
                                                     <div className="space-y-2 mt-2 pl-2 border-l-2 border-amber-200 dark:border-amber-800">
                                                         {type.key_rules.map((rule: any, rIdx: number) => (
                                                             <div key={rIdx} className="pl-2">
-                                                                <div className="text-slate-800 dark:text-slate-200 font-semibold text-sm">{rule.rule_en}</div>
-                                                                <div className="text-blue-600 dark:text-blue-400 text-xs font-medium">{rule.rule_hi}</div>
+                                                                <div className="text-slate-900 dark:text-slate-200 font-bold text-sm">{rule.rule_en}</div>
+                                                                <div className="text-blue-700 dark:text-blue-400 text-xs font-semibold">{rule.rule_hi}</div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -280,11 +280,11 @@ const ChapterSummary: React.FC = () => {
 
                                                 {type.difference_trick && (
                                                     <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800 mt-2">
-                                                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 uppercase tracking-wide flex items-center gap-1">
+                                                        <div className="text-xs font-bold text-emerald-800 dark:text-emerald-400 mb-1 uppercase tracking-wide flex items-center gap-1">
                                                             <span className="material-symbols-outlined text-sm">lightbulb</span> Tip: {type.difference_trick.concept}
                                                         </div>
-                                                        <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{type.difference_trick.explanation}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{type.difference_trick.hindi_explanation}</p>
+                                                        <p className="text-sm text-slate-900 dark:text-slate-200 font-semibold">{type.difference_trick.explanation}</p>
+                                                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{type.difference_trick.hindi_explanation}</p>
                                                     </div>
                                                 )}
                                                 
@@ -292,7 +292,7 @@ const ChapterSummary: React.FC = () => {
                                                     <div className="pt-2">
                                                         <div className="flex flex-wrap gap-2">
                                                             {(Array.isArray(type.examples) ? type.examples : type.examples.split(',')).map((ex: string, eIdx: number) => (
-                                                                <span key={eIdx} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                                <span key={eIdx} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-700 dark:text-slate-300">
                                                                     {ex.trim()}
                                                                 </span>
                                                             ))}
@@ -311,7 +311,7 @@ const ChapterSummary: React.FC = () => {
                                     {section.golden_rules_for_number.map((rule: any, rIdx: number) => (
                                         <div key={rIdx} className="bg-white dark:bg-zinc-900 p-5 rounded-xl border-l-4 border-purple-500 shadow-sm">
                                             <p className="font-bold text-slate-900 dark:text-white text-base mb-1">{rule.rule}</p>
-                                            {rule.hindi_explanation && <p className="text-sm text-blue-600 dark:text-blue-400 mb-2 font-medium">{rule.hindi_explanation}</p>}
+                                            {rule.hindi_explanation && <p className="text-sm text-blue-700 dark:text-blue-400 mb-2 font-semibold">{rule.hindi_explanation}</p>}
                                             <div className="text-xs font-mono bg-slate-50 dark:bg-zinc-800 p-2 rounded text-purple-700 dark:text-purple-400">
                                                 {rule.example}
                                             </div>
@@ -333,20 +333,20 @@ const ChapterSummary: React.FC = () => {
                                                     <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">RULE {rule.rule_id}</span>
                                                     <h3 className="font-bold text-rose-700 dark:text-rose-400 text-sm uppercase tracking-wide">{rule.concept}</h3>
                                                 </div>
-                                                <p className="text-slate-800 dark:text-slate-200 font-medium text-base mb-1">{rule.hindi_explanation}</p>
-                                                {rule.usage && <p className="text-sm text-slate-500 mb-3">{rule.usage}</p>}
+                                                <p className="text-slate-900 dark:text-slate-200 font-bold text-base mb-1">{rule.hindi_explanation}</p>
+                                                {rule.usage && <p className="text-sm text-slate-600 mb-3">{rule.usage}</p>}
                                                 
                                                 {rule.examples && (
                                                     <div className="flex flex-wrap gap-2 mb-3">
                                                         {rule.examples.map((ex: string, exIdx: number) => (
-                                                            <span key={exIdx} className="text-xs font-bold text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{ex}</span>
+                                                            <span key={exIdx} className="text-xs font-bold text-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{ex}</span>
                                                         ))}
                                                     </div>
                                                 )}
                                                 {(rule.sentence || rule.correction) && (
                                                     <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg text-sm border-l-2 border-rose-400">
-                                                        {rule.sentence && <div className="font-mono text-slate-700 dark:text-slate-300 font-medium">❌ {rule.sentence}</div>}
-                                                        {rule.correction && <div className="font-mono text-green-700 dark:text-green-400 mt-1 font-bold">✅ {rule.correction}</div>}
+                                                        {rule.sentence && <div className="font-mono text-slate-800 dark:text-slate-300 font-semibold">❌ {rule.sentence}</div>}
+                                                        {rule.correction && <div className="font-mono text-green-800 dark:text-green-400 mt-1 font-bold">✅ {rule.correction}</div>}
                                                     </div>
                                                 )}
                                             </div>
@@ -448,11 +448,11 @@ const ChapterSummary: React.FC = () => {
                     
                     <div className={`p-6 rounded-2xl ${cardClass} hover:shadow-md transition-shadow space-y-4`}>
                         {section.content_en && (
-                            <p className={`leading-relaxed font-display text-justify font-semibold ${textBody}`}>{section.content_en}</p>
+                            <p className={`leading-relaxed font-display text-justify font-bold ${textBody}`}>{section.content_en}</p>
                         )}
                         {section.content_hi && (
                             <div className={`mt-4 pt-4 border-t border-dashed ${theme === 'default' ? 'border-slate-100 dark:border-zinc-800' : 'border-current border-opacity-20'}`}>
-                                <p className={`text-[0.95em] leading-relaxed font-body text-justify font-medium ${textHindi}`}>
+                                <p className={`text-[0.95em] leading-relaxed font-body text-justify font-semibold ${textHindi}`}>
                                     {section.content_hi}
                                 </p>
                             </div>
@@ -466,10 +466,10 @@ const ChapterSummary: React.FC = () => {
               <div className={`p-6 rounded-2xl ${cardClass}`}>
                   <div className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`} style={{ fontSize: '1em' }}>
                       {data.summary ? (
-                          <p className={`font-medium leading-relaxed ${textBody}`}>{data.summary}</p>
+                          <p className={`font-bold leading-relaxed ${textBody}`}>{data.summary}</p>
                       ) : (
                           data.text && typeof data.text === 'string' && data.text.split('\n').map((para: string, i: number) => (
-                              <p key={i} className={`mb-4 font-medium leading-relaxed ${textBody}`}>{para}</p>
+                              <p key={i} className={`mb-4 font-bold leading-relaxed ${textBody}`}>{para}</p>
                           ))
                       )}
                   </div>
@@ -493,9 +493,9 @@ const ChapterSummary: React.FC = () => {
                       <div className="space-y-4">
                         {lines.map((line: any, lIdx: number) => (
                           <div key={lIdx} className={`p-6 rounded-2xl ${cardClass}`}>
-                            <p className={`mb-2 leading-relaxed font-display font-semibold ${textBody}`}>{line.englishLine}</p>
+                            <p className={`mb-2 leading-relaxed font-display font-bold ${textBody}`}>{line.englishLine}</p>
                             {line.hindiTranslation && (
-                              <p className={`text-[0.9em] leading-relaxed font-body font-medium ${textHindi}`}>
+                              <p className={`text-[0.9em] leading-relaxed font-body font-semibold ${textHindi}`}>
                                 {line.hindiTranslation}
                               </p>
                             )}
