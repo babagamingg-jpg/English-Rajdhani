@@ -27,6 +27,7 @@ const ChapterQuiz: React.FC = () => {
   // Data State
   const [questions, setQuestions] = useState<Question[]>([]);
   const [quizStatus, setQuizStatus] = useState<QuizStatus>('loading');
+  const [quizMeta, setQuizMeta] = useState<{ title?: string; author?: string }>({});
   
   // Quiz Session State
   const [currentQ, setCurrentQ] = useState(0);
@@ -47,37 +48,100 @@ const ChapterQuiz: React.FC = () => {
 
   // Constants
   const POSITIVE_MARK = 1.0;
-  const NEGATIVE_MARK = 0.25;
+  const NEGATIVE_MARK = 0;
 
   // --- Initialization ---
 
   useEffect(() => {
     const fetchQuiz = async () => {
       setQuizStatus('loading');
-      const { data, error } = await supabase
-        .from('chapters')
-        .select('title, quiz')
-        .eq('id', chapterId)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('chapters')
+          .select('title, quiz')
+          .eq('id', chapterId)
+          .single();
 
-      if (data?.quiz) {
-        const quizData = typeof data.quiz === 'string' ? JSON.parse(data.quiz) : data.quiz;
-        const qArray = Array.isArray(quizData) ? quizData : (quizData.questions || []);
-        
-        // Normalize questions to have correct_answer index
-        const normalizedQuestions = qArray.map((q: any) => {
-           let correctIdx = q.correct_answer;
-           if (typeof correctIdx !== 'number' && q.answer) {
-               correctIdx = q.options.findIndex((opt: string) => opt === q.answer);
-           }
-           return { ...q, correct_answer: correctIdx };
-        });
+        if (data?.quiz) {
+            let quizData = data.quiz;
+            
+            // Handle double stringification or string format
+            if (typeof quizData === 'string') {
+                try {
+                    quizData = JSON.parse(quizData);
+                    // Check if it's nested again (common in some upload scripts)
+                    if (typeof quizData === 'string') {
+                        quizData = JSON.parse(quizData);
+                    }
+                } catch (e) {
+                    console.error("Error parsing quiz JSON:", e);
+                    quizData = { questions: [] };
+                }
+            }
 
-        setQuestions(normalizedQuestions);
-        setQuizStatus(normalizedQuestions.length > 0 ? 'active' : 'result');
-      } else {
-        setQuestions([]);
-        setQuizStatus('result'); // Show empty result or handle error
+            const qArray = Array.isArray(quizData) ? quizData : (quizData.questions || []);
+            setQuizMeta({ title: quizData.chapter || data.title, author: quizData.author });
+            
+            // Normalize questions
+            const normalizedQuestions = qArray.map((q: any) => {
+                // Case 1: Options is an Object map {"A": "Text", "B": "Text"}
+                if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+                    // Sort keys to ensure A, B, C, D order
+                    const keys = Object.keys(q.options).sort(); 
+                    const optionsArray = keys.map(key => q.options[key]);
+                    
+                    // Resolve correct answer index from letter (e.g., "A" -> 0)
+                    let correctIdx = -1;
+                    if (typeof q.correct_answer === 'string') {
+                        const ansKey = q.correct_answer.trim();
+                        correctIdx = keys.indexOf(ansKey);
+                    } else if (typeof q.correct_answer === 'number') {
+                        correctIdx = q.correct_answer;
+                    }
+
+                    return {
+                        question: q.question,
+                        options: optionsArray,
+                        correct_answer: correctIdx,
+                        explanation: q.explanation
+                    };
+                }
+
+                // Case 2: Standard Array Options
+                let correctIdx = q.correct_answer;
+                
+                // Legacy: String match "Answer Text" === "Answer Text"
+                if (typeof correctIdx !== 'number' && q.answer && Array.isArray(q.options)) {
+                    correctIdx = q.options.findIndex((opt: string) => opt === q.answer);
+                }
+                
+                // Legacy: Letter match "A" -> 0 for array options
+                if (typeof correctIdx !== 'number' && typeof q.correct_answer === 'string' && Array.isArray(q.options)) {
+                    const charCode = q.correct_answer.toUpperCase().charCodeAt(0);
+                    // 'A' is 65
+                    if (charCode >= 65 && charCode < 65 + q.options.length) {
+                        correctIdx = charCode - 65;
+                    }
+                }
+
+                return { ...q, correct_answer: correctIdx };
+            });
+
+            // Filter out invalid questions
+            const validQuestions = normalizedQuestions.filter((q: any) => 
+                q.options && q.options.length > 0 && typeof q.correct_answer === 'number' && q.correct_answer >= 0
+            );
+
+            setQuestions(validQuestions);
+            setQuizStatus(validQuestions.length > 0 ? 'active' : 'result');
+        } else {
+            setQuestions([]);
+            setQuizStatus('result');
+        }
+      } catch (err) {
+          console.error("Quiz fetch error:", err);
+          setQuestions([]);
+          setQuizStatus('result');
       }
     };
 
@@ -117,11 +181,6 @@ const ChapterQuiz: React.FC = () => {
 
   const handleOptionSelect = (optionIdx: number) => {
      if (quizStatus !== 'active') return;
-     // Just select, don't save/next yet. 
-     // Note: In this UI, selecting updates the state immediately, 
-     // but we consider it "Answered" for palette only if it's in the answers map.
-     // We'll update the answer map immediately for better UX responsiveness,
-     // matching the "Save & Next" pattern where the selection persists.
      setState(prev => ({
          ...prev,
          answers: { ...prev.answers, [currentQ]: optionIdx }
@@ -140,8 +199,6 @@ const ChapterQuiz: React.FC = () => {
   };
 
   const handleSaveAndNext = () => {
-      // Logic: If option selected, it's already saved in state.answers via handleOptionSelect.
-      // Just move next.
       handleNext();
   };
 
@@ -237,10 +294,11 @@ const ChapterQuiz: React.FC = () => {
   // 1. RESULT VIEW
   if (quizStatus === 'result') {
       const stats = calculateScore();
-      const accuracy = stats.correct + stats.wrong > 0 
-          ? Math.round((stats.correct / (stats.correct + stats.wrong)) * 100) 
+      // Avoid division by zero
+      const maxScore = stats.totalQuestions * POSITIVE_MARK;
+      const scorePercent = maxScore > 0 
+          ? Math.max(0, Math.round((stats.score / maxScore) * 100))
           : 0;
-      const scorePercent = Math.max(0, Math.round((stats.score / (stats.totalQuestions * POSITIVE_MARK)) * 100));
       
       return (
           <div className="h-full flex flex-col bg-white dark:bg-slate-900 overflow-y-auto no-scrollbar">
@@ -326,10 +384,11 @@ const ChapterQuiz: React.FC = () => {
   const currentQuestion = questions[currentQ];
   const totalQuestions = questions.length;
   
+  if (!currentQuestion) return null; // Safety
+
   // Solution Mode Specifics
   const userAns = state.answers[currentQ];
   const correctAns = currentQuestion.correct_answer;
-  const isCorrect = userAns === correctAns;
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-slate-900 font-display">
@@ -340,7 +399,7 @@ const ChapterQuiz: React.FC = () => {
               {isSolution ? (
                  <div className="flex items-center gap-3">
                      <button onClick={() => setQuizStatus('result')} className="material-symbols-outlined text-gray-600 dark:text-gray-300">arrow_back</button>
-                     <span className="font-bold text-gray-800 dark:text-white">Detailed Solutions</span>
+                     <span className="font-bold text-gray-800 dark:text-white truncate max-w-[200px]">Solutions: {quizMeta.title || 'Chapter Quiz'}</span>
                  </div>
               ) : (
                  <>
@@ -377,7 +436,6 @@ const ChapterQuiz: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                       <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded">+{POSITIVE_MARK}</span>
-                      <span className="text-rose-600 bg-rose-50 dark:bg-rose-900/20 px-1.5 py-0.5 rounded">-{NEGATIVE_MARK}</span>
                   </div>
               </div>
               

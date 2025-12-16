@@ -32,7 +32,7 @@ const GrammarTopics: React.FC = () => {
         }
 
         // 2. Fetch Grammar chapters
-        // We strictly use 'grammar' (lowercase) because Postgres Enums are case-sensitive and strict.
+        // According to the new schema, Grammar chapters have section_type = 'grammar'.
         const { data, error } = await supabase
           .from('chapters')
           .select('*')
@@ -67,6 +67,30 @@ const GrammarTopics: React.FC = () => {
     e.stopPropagation();
     // Pass backPath in state
     navigate(`/chapter/${chapterId}/quiz`, { state: { backPath: `/class/${classId}/grammar` } });
+  };
+
+  // Helper to extract the rich topic title from JSON content if available
+  const getDisplayTitle = (topic: ChapterEntity) => {
+    try {
+      let content = topic.content;
+      // Handle stringified JSON
+      if (typeof content === 'string') {
+        try {
+           content = JSON.parse(content);
+           // Handle double stringified if necessary
+           if (typeof content === 'string') content = JSON.parse(content);
+        } catch(e) { return topic.title; }
+      }
+      
+      // Check for Grammar format topic
+      if (content?.chapter_info?.topic) {
+        return content.chapter_info.topic;
+      }
+      
+      return topic.title;
+    } catch (e) {
+      return topic.title;
+    }
   };
 
   return (
@@ -140,7 +164,7 @@ const GrammarTopics: React.FC = () => {
                                     UNIT {topic.chapter_number}
                                 </p>
                                 <h3 className="text-base font-bold text-[#1f2937] dark:text-zinc-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                                    {topic.title}
+                                    {getDisplayTitle(topic)}
                                 </h3>
                             </div>
                         </div>

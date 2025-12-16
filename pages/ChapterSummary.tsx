@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
-import { ChapterEntity } from '../types';
+import { ChapterEntity, GrammarSection } from '../types';
 
 const ChapterSummary: React.FC = () => {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -12,13 +12,11 @@ const ChapterSummary: React.FC = () => {
 
   // Reader Mode State
   const [showThemeMenu, setShowThemeMenu] = useState(false);
-  // Scale: 0 (Small) to 6 (Huge)
   const [fontSizeIndex, setFontSizeIndex] = useState(2); // Default to index 2 (Normal/Medium)
   const [theme, setTheme] = useState<'default' | 'sepia' | 'dark'>('default');
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
-  // Font size mapping (in pixels for reliable scaling)
-  const FONT_SIZES = [14, 16, 18, 22, 26, 32, 40]; 
+  const FONT_SIZES = [14, 16, 18, 20, 24, 28, 32]; 
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -68,248 +66,436 @@ const ChapterSummary: React.FC = () => {
     setFontSizeIndex(prev => Math.min(FONT_SIZES.length - 1, prev + 1));
   };
 
-  // Helper to parse content string if 'lines' array is missing
-  const parseContentToLines = (content: string) => {
+  const getParsedContent = (rawContent: any) => {
+     let parsed = rawContent;
+     if (typeof rawContent === 'string') {
+        try {
+            if (rawContent.trim().startsWith('{') || rawContent.trim().startsWith('[')) {
+                parsed = JSON.parse(rawContent);
+            } else {
+                return { text: rawContent };
+            }
+        } catch (e) {
+            console.warn("Failed to parse content JSON, treating as text", e);
+            return { text: rawContent };
+        }
+     } 
+     if (!parsed) parsed = {};
+     if (parsed.chapter_info && Array.isArray(parsed.content)) {
+         return { ...parsed, isGrammar: true };
+     }
+     if (parsed.summary && typeof parsed.summary === 'string') {
+         try {
+             const trimmedSummary = parsed.summary.trim();
+             if (trimmedSummary.startsWith('{')) {
+                 const nestedSummary = JSON.parse(trimmedSummary);
+                 if (nestedSummary.chapter_summary) {
+                     return { ...nestedSummary.chapter_summary, isNewFormat: true };
+                 }
+                 if (nestedSummary.sections || nestedSummary.heading_en) {
+                    return { ...nestedSummary, isNewFormat: true };
+                 }
+             }
+         } catch (e) { }
+     }
+     if (parsed.chapter_summary) {
+         return { ...parsed.chapter_summary, isNewFormat: true };
+     }
+     if (parsed.sections && Array.isArray(parsed.sections) && parsed.sections.some((s: any) => s.content_en || s.heading_en)) {
+         return { ...parsed, isNewFormat: true };
+     }
+     return parsed;
+  };
+
+  const parseLegacyContentToLines = (content: string) => {
     if (!content) return [];
     const text = content.replace(/\r\n/g, '\n');
     const parts = text.split(/\n\s*---\s*\n/);
-    
     return parts.map(part => {
         const engMarker = "**English Line:**";
         const hindiMarker = "**Hindi Translation:**";
-        
         const engIndex = part.indexOf(engMarker);
         const hindiIndex = part.indexOf(hindiMarker);
-        
         if (engIndex === -1) return null;
-        
         let englishLine = "";
         let hindiTranslation = "";
-        
         if (hindiIndex !== -1) {
             englishLine = part.substring(engIndex + engMarker.length, hindiIndex).trim();
             hindiTranslation = part.substring(hindiIndex + hindiMarker.length).trim();
         } else {
             englishLine = part.substring(engIndex + engMarker.length).trim();
         }
-        
         return { englishLine, hindiTranslation };
     }).filter(item => item !== null);
   };
 
   // --- Dynamic Styles Helpers ---
 
-  // Main page background (behind everything)
   const getPageBaseColor = () => {
     switch (theme) {
       case 'sepia': return 'bg-[#f4ecd8]';
       case 'dark': return 'bg-[#121212]';
-      default: return 'bg-gray-50 dark:bg-background-dark';
+      default: return 'bg-slate-100 dark:bg-slate-950';
     }
   };
 
-  // Content Sheet style
-  const getSheetStyle = () => {
-    switch (theme) {
-      case 'sepia': 
-        // Seamless blending for reader mode
-        return 'bg-[#f4ecd8] text-[#5b4636] shadow-none';
-      case 'dark': 
-        // Seamless blending for reader mode
-        return 'bg-[#121212] text-[#e5e5e5] shadow-none';
-      default: 
-        // Card look for default mode
-        return 'bg-white dark:bg-zinc-900 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] text-gray-800 dark:text-gray-100';
-    }
-  };
-
-  // Text color for header elements (Back button, Settings button)
   const getHeaderTextColor = () => {
     if (theme === 'default') return 'text-white';
     if (theme === 'sepia') return 'text-[#5b4636]';
     return 'text-gray-200';
   };
 
-  // Button background for header elements
   const getHeaderButtonBg = () => {
     if (theme === 'default') return 'bg-white/20 hover:bg-white/30 backdrop-blur-md border-white/20';
     if (theme === 'sepia') return 'bg-[#e9e0c9] hover:bg-[#ded4bb] border-transparent';
     return 'bg-white/10 hover:bg-white/20 border-transparent';
   };
 
-  // --- Content Renderers ---
-
-  // Sepia color palette for Typography to override Tailwind Prose defaults
-  const sepiaProse = {
-    '--tw-prose-body': '#5b4636',
-    '--tw-prose-headings': '#433422',
-    '--tw-prose-lead': '#5b4636',
-    '--tw-prose-links': '#8B5E3C',
-    '--tw-prose-bold': '#433422',
-    '--tw-prose-counters': '#6d5a4b',
-    '--tw-prose-bullets': '#6d5a4b',
-    '--tw-prose-hr': '#e6dcc6',
-    '--tw-prose-quotes': '#433422',
-    '--tw-prose-quote-borders': '#e6dcc6',
-    '--tw-prose-captions': '#5b4636',
-    '--tw-prose-code': '#433422',
-    '--tw-prose-pre-code': '#5b4636',
-    '--tw-prose-pre-bg': '#e6dcc6',
-    '--tw-prose-th-borders': '#dcd1b8',
-    '--tw-prose-td-borders': '#dcd1b8',
-    '--tw-prose-invert-body': '#5b4636', // Fallbacks just in case
-    '--tw-prose-invert-headings': '#433422',
-  } as React.CSSProperties;
+  // --- Renderers ---
 
   const renderContent = () => {
-    if (!chapter?.content) return <p className="opacity-60 text-center py-10">No content available.</p>;
+    if (!chapter) return <p className="opacity-60 text-center py-10">No content available.</p>;
 
-    const contentData = typeof chapter.content === 'string' 
-      ? JSON.parse(chapter.content) 
-      : chapter.content;
-
-    // Supports both old and new JSON formats
-    const { summary, keyPoints, importantTerms, text, sections, vocabulary, author, introduction } = contentData;
-
-    // Helper for cards inside the content
-    const cardClass = theme === 'default' 
-        ? 'bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700/50' 
-        : 'border border-current border-opacity-20 bg-transparent';
-
-    // Current pixel size for inline style
-    const currentPixelSize = FONT_SIZES[fontSizeIndex];
+    const data = getParsedContent(chapter.content);
     
+    // Typography Colors
+    const textHeading = theme === 'default' ? 'text-slate-900 dark:text-white' : '';
+    const textBody = theme === 'default' ? 'text-slate-800 dark:text-slate-200' : '';
+    const textHindi = theme === 'default' ? 'text-blue-700 dark:text-blue-400' : '';
+    
+    // --- GRAMMAR RENDERER ---
+    if (data.isGrammar) {
+        return (
+            <div className="space-y-12 max-w-3xl mx-auto pb-20">
+                {/* Intro / Objective */}
+                {data.chapter_info && (
+                    <div className="text-center space-y-2 mb-8 animate-in slide-in-from-bottom-4">
+                        <div className="inline-block px-4 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm border border-amber-200 dark:border-amber-800">
+                            {data.chapter_info.objective}
+                        </div>
+                    </div>
+                )}
+
+                {/* Sections Loop */}
+                {data.content && data.content.map((section: GrammarSection, sIdx: number) => (
+                    <div key={sIdx} className="animate-in slide-in-from-bottom-4" style={{ animationDelay: `${sIdx * 100}ms` }}>
+                        <div className="flex items-center gap-4 mb-5">
+                            <span className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold shadow-md">
+                                {sIdx + 1}
+                            </span>
+                            <h2 className={`text-xl font-bold leading-tight ${textHeading}`}>
+                                {section.title}
+                            </h2>
+                        </div>
+                        
+                        <div className={`space-y-6 ${section.note || section.description ? 'mt-2' : ''}`}>
+                            
+                            {/* Section Note */}
+                            {(section.note || section.description) && (
+                                <p className="text-gray-700 dark:text-gray-300 italic bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border-l-4 border-amber-400 shadow-sm">
+                                    {section.note || section.description}
+                                </p>
+                            )}
+
+                            {/* 1. Concepts */}
+                            {section.concepts && section.concepts.map((concept: any, cIdx: number) => (
+                                <div key={cIdx} className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+                                    {concept.type && (
+                                        <h3 className="font-bold text-lg text-amber-600 dark:text-amber-400 mb-1">{concept.type}</h3>
+                                    )}
+                                    {concept.concept_name && (
+                                        <h3 className="font-bold text-lg text-indigo-700 dark:text-indigo-400 mb-2">{concept.concept_name}</h3>
+                                    )}
+
+                                    <div className="space-y-3">
+                                        {concept.english_text && <p className={`font-semibold ${textBody}`}>{concept.english_text}</p>}
+                                        {concept.hindi_explanation && <p className={`text-sm font-medium ${textHindi}`}>{concept.hindi_explanation}</p>}
+                                        {concept.meaning && <p className={`font-semibold ${textBody}`}>{concept.meaning}</p>}
+                                        {concept.hindi && <p className={`text-sm font-medium ${textHindi}`}>{concept.hindi}</p>}
+                                    </div>
+
+                                    {(concept.examples || concept.example) && (
+                                        <div className="mt-4 pt-3 border-t border-dashed border-slate-200 dark:border-slate-800">
+                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide mr-2">Ex:</span>
+                                            <span className="font-medium text-slate-600 dark:text-slate-300 italic">
+                                                {Array.isArray(concept.examples) ? concept.examples.join(', ') : (concept.examples || concept.example)}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {concept.types && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                            {concept.types.map((t: any, tIdx: number) => (
+                                                <div key={tIdx} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                    <div className="font-bold text-sm text-slate-800 dark:text-slate-200">{t.type}</div>
+                                                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1 font-medium">({t.hindi_meaning})</div>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{t.description}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* 2. Types/Classifications */}
+                            {section.types && (
+                                <div className="grid gap-4">
+                                    {section.types.map((type: any, tIdx: number) => (
+                                        <div key={tIdx} className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                                            <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                                <div>
+                                                    <span className="font-bold text-base text-slate-900 dark:text-white">{type.type_name || type.name}</span>
+                                                    {(type.hindi_name || type.hindi) && <span className="ml-2 text-sm text-blue-600 dark:text-blue-400 font-medium">({type.hindi_name || type.hindi})</span>}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="p-5 space-y-3">
+                                                {(type.definition || type.explanation) && (
+                                                    <p className={`text-base font-medium leading-relaxed ${textBody}`}>
+                                                        {type.definition || type.explanation}
+                                                    </p>
+                                                )}
+                                                {type.hindi_explanation && (
+                                                    <p className={`text-sm font-medium italic ${textHindi}`}>
+                                                        {type.hindi_explanation}
+                                                    </p>
+                                                )}
+                                                {type.rule && (
+                                                    <div className="flex gap-2 bg-blue-50 dark:bg-blue-900/10 p-2 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                                                        <span className="material-symbols-outlined text-sm">info</span>
+                                                        {type.rule}
+                                                    </div>
+                                                )}
+
+                                                {type.key_rules && (
+                                                    <div className="space-y-2 mt-2 pl-2 border-l-2 border-amber-200 dark:border-amber-800">
+                                                        {type.key_rules.map((rule: any, rIdx: number) => (
+                                                            <div key={rIdx} className="pl-2">
+                                                                <div className="text-slate-800 dark:text-slate-200 font-semibold text-sm">{rule.rule_en}</div>
+                                                                <div className="text-blue-600 dark:text-blue-400 text-xs font-medium">{rule.rule_hi}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {type.difference_trick && (
+                                                    <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800 mt-2">
+                                                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 uppercase tracking-wide flex items-center gap-1">
+                                                            <span className="material-symbols-outlined text-sm">lightbulb</span> Tip: {type.difference_trick.concept}
+                                                        </div>
+                                                        <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{type.difference_trick.explanation}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{type.difference_trick.hindi_explanation}</p>
+                                                    </div>
+                                                )}
+                                                
+                                                {type.examples && (
+                                                    <div className="pt-2">
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {(Array.isArray(type.examples) ? type.examples : type.examples.split(',')).map((ex: string, eIdx: number) => (
+                                                                <span key={eIdx} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                                    {ex.trim()}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 3. Golden Rules */}
+                            {section.golden_rules_for_number && (
+                                <div className="space-y-3">
+                                    {section.golden_rules_for_number.map((rule: any, rIdx: number) => (
+                                        <div key={rIdx} className="bg-white dark:bg-zinc-900 p-5 rounded-xl border-l-4 border-purple-500 shadow-sm">
+                                            <p className="font-bold text-slate-900 dark:text-white text-base mb-1">{rule.rule}</p>
+                                            {rule.hindi_explanation && <p className="text-sm text-blue-600 dark:text-blue-400 mb-2 font-medium">{rule.hindi_explanation}</p>}
+                                            <div className="text-xs font-mono bg-slate-50 dark:bg-zinc-800 p-2 rounded text-purple-700 dark:text-purple-400">
+                                                {rule.example}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 4. Exam Rules */}
+                            {section.rules && (
+                                <div className="space-y-4">
+                                    {section.rules.map((rule: any, rIdx: number) => (
+                                        <div key={rIdx} className="bg-white dark:bg-zinc-900 border border-rose-100 dark:border-rose-900/30 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                <span className="material-symbols-outlined text-5xl text-rose-500">warning</span>
+                                            </div>
+                                            <div className="relative z-10">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">RULE {rule.rule_id}</span>
+                                                    <h3 className="font-bold text-rose-700 dark:text-rose-400 text-sm uppercase tracking-wide">{rule.concept}</h3>
+                                                </div>
+                                                <p className="text-slate-800 dark:text-slate-200 font-medium text-base mb-1">{rule.hindi_explanation}</p>
+                                                {rule.usage && <p className="text-sm text-slate-500 mb-3">{rule.usage}</p>}
+                                                
+                                                {rule.examples && (
+                                                    <div className="flex flex-wrap gap-2 mb-3">
+                                                        {rule.examples.map((ex: string, exIdx: number) => (
+                                                            <span key={exIdx} className="text-xs font-bold text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{ex}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {(rule.sentence || rule.correction) && (
+                                                    <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg text-sm border-l-2 border-rose-400">
+                                                        {rule.sentence && <div className="font-mono text-slate-700 dark:text-slate-300 font-medium">❌ {rule.sentence}</div>}
+                                                        {rule.correction && <div className="font-mono text-green-700 dark:text-green-400 mt-1 font-bold">✅ {rule.correction}</div>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // --- LITERATURE RENDERER ---
+    const isNewFormat = !!data.isNewFormat;
+    const cardClass = theme === 'default' 
+        ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200 dark:border-zinc-800' 
+        : 'border border-current border-opacity-20 bg-transparent';
+    
+    // Fix: Define sepiaProse before usage
+    const sepiaProse = {
+        '--tw-prose-body': '#5b4636',
+        '--tw-prose-headings': '#433422',
+    } as React.CSSProperties;
+
     const containerStyle = { 
-        fontSize: `${currentPixelSize}px`, 
-        lineHeight: '1.6',
+        fontSize: `${FONT_SIZES[fontSizeIndex]}px`, 
+        lineHeight: '1.7',
         ...(theme === 'sepia' ? sepiaProse : {})
+    };
+
+    const iconMap: Record<string, string> = {
+        author: 'person',
+        type_of_prose: 'category',
+        famous_quote: 'format_quote',
+        core_theme: 'topic',
+        definition_of_civilization: 'history_edu'
     };
 
     return (
         <div 
-          className={`space-y-10 max-w-3xl mx-auto transition-all duration-200`}
+          className={`space-y-10 max-w-3xl mx-auto transition-all duration-200 pb-24`}
           style={containerStyle}
         >
-            {/* Author Name */}
-            {author && (
+            {data.author && typeof data.author === 'string' && (
               <div className="text-center opacity-70 italic -mt-4 mb-8">
-                By {author}
+                By {data.author}
               </div>
             )}
             
-            {/* Introduction (if viewing summary) */}
-            {introduction && (
-              <div className={`p-6 rounded-2xl ${theme === 'default' ? 'bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30' : 'border border-current border-opacity-30'}`}>
-                 <h3 className="font-bold mb-2 opacity-90 text-[1.1em]">Introduction</h3>
-                 <p className="opacity-85 leading-relaxed italic">{introduction}</p>
-              </div>
-            )}
-
-            {/* Main Summary Text */}
-            {(summary || text) && !sections && (
-              <div 
-                className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''} transition-colors duration-500`}
-                style={{ fontSize: '1em' }}
-              >
-                  {summary ? (
-                      <p className="opacity-90 leading-relaxed">
-                          <span className="text-[1.5em] font-bold mr-1 float-left leading-none">
-                              {summary.charAt(0)}
-                          </span>
-                          {summary.slice(1)}
-                      </p>
-                  ) : (
-                      text && text.split('\n').map((para: string, i: number) => (
-                          <p key={i} className="mb-4 opacity-90 leading-relaxed">{para}</p>
-                      ))
-                  )}
-              </div>
-            )}
-
-            {/* Key Points Section */}
-            {keyPoints && Array.isArray(keyPoints) && keyPoints.length > 0 && (
-                <div className={`rounded-3xl p-6 md:p-8 ${cardClass} transition-colors duration-500`}>
-                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-600 dark:text-indigo-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
+            {/* Key Highlights */}
+            {isNewFormat && data.key_highlights && (
+                <div className={`rounded-3xl p-6 md:p-8 ${cardClass}`}>
+                    <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
                        <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>lightbulb</span> Key Highlights
                     </h3>
-                    <ul className="space-y-4">
-                        {keyPoints.map((point: string, idx: number) => (
-                            <li key={idx} className="flex gap-4 items-start">
-                                <span className={`flex-shrink-0 mt-[0.6em] w-2 h-2 rounded-full ${theme === 'default' ? 'bg-indigo-400' : 'bg-current opacity-60'}`}></span>
-                                <span className="opacity-90 leading-relaxed">{point}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
-            {/* Vocabulary (Array - from 'vocabulary' or 'importantTerms') */}
-            {((vocabulary && Array.isArray(vocabulary)) || (importantTerms && Array.isArray(importantTerms))) && (
-                <div>
-                    <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
-                       <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {(vocabulary || importantTerms).map((item: any, idx: number) => (
-                            <div key={idx} className={`rounded-2xl p-5 ${cardClass} transition-colors duration-500`}>
-                                <span className={`block font-bold mb-1 ${theme === 'default' ? 'text-emerald-700 dark:text-emerald-400' : ''}`} style={{ fontSize: '1.1em' }}>
-                                    {item.term}
-                                </span>
-                                <span className="opacity-90 leading-relaxed text-[0.95em] block">
-                                    {item.englishMeaning || item.definition}
-                                </span>
-                                {item.hindiMeaning && (
-                                   <span className={`opacity-75 leading-relaxed text-[0.85em] block mt-1 ${theme === 'default' ? 'text-gray-500 dark:text-gray-400' : ''}`}>
-                                      {item.hindiMeaning}
-                                   </span>
-                                )}
-                            </div>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {Object.entries(data.key_highlights).map(([key, value]: [string, any], idx: number) => {
+                            const isQuote = key === 'famous_quote';
+                            const isLong = (typeof value === 'string' && value.length > 50) || isQuote;
+                            const icon = iconMap[key] || 'label';
+                            const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className={`${isLong ? 'md:col-span-2' : ''} ${isQuote ? 'bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-800/30' : ''}`}
+                                >
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <span className={`material-symbols-outlined text-[18px] ${theme === 'default' ? 'text-indigo-400 opacity-70' : 'opacity-50'}`}>{icon}</span>
+                                        <span className={`text-[0.75em] font-bold uppercase tracking-widest ${theme === 'default' ? 'text-slate-400 dark:text-slate-500' : 'opacity-60'}`}>{label}</span>
+                                    </div>
+                                    <p className={`${isQuote ? 'font-serif italic text-lg text-slate-900 dark:text-white leading-relaxed' : 'font-semibold text-slate-800 dark:text-slate-200 leading-relaxed'}`}>
+                                        {isQuote ? `“${value}”` : value}
+                                    </p>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
 
-            {/* LEGACY FORMAT: Vocabulary (Object) */}
-            {importantTerms && typeof importantTerms === 'object' && !Array.isArray(importantTerms) && Object.keys(importantTerms).length > 0 && !vocabulary && (
-                <div>
-                    <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
-                       <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(importantTerms).map(([term, def]: [string, any], idx) => (
-                            <div key={idx} className={`rounded-2xl p-5 ${cardClass} transition-colors duration-500`}>
-                                <span className={`block font-bold mb-1 ${theme === 'default' ? 'text-emerald-700 dark:text-emerald-400' : ''}`} style={{ fontSize: '1.1em' }}>
-                                    {term}
-                                </span>
-                                <span className="opacity-80 leading-relaxed text-[0.9em]">{String(def)}</span>
+            {/* Sections */}
+            {isNewFormat && data.sections && data.sections.map((section: any, idx: number) => (
+                <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="mb-4">
+                         {section.heading_en && (
+                             <h3 className={`font-bold ${textHeading}`} style={{ fontSize: '1.3em' }}>
+                                {section.heading_en}
+                             </h3>
+                         )}
+                         {section.heading_hi && (
+                             <h4 className={`font-medium mt-1 ${theme === 'default' ? 'text-blue-600 dark:text-blue-400' : 'opacity-70'}`} style={{ fontSize: '1em' }}>
+                                {section.heading_hi}
+                             </h4>
+                         )}
+                    </div>
+                    
+                    <div className={`p-6 rounded-2xl ${cardClass} hover:shadow-md transition-shadow space-y-4`}>
+                        {section.content_en && (
+                            <p className={`leading-relaxed font-display text-justify font-semibold ${textBody}`}>{section.content_en}</p>
+                        )}
+                        {section.content_hi && (
+                            <div className={`mt-4 pt-4 border-t border-dashed ${theme === 'default' ? 'border-slate-100 dark:border-zinc-800' : 'border-current border-opacity-20'}`}>
+                                <p className={`text-[0.95em] leading-relaxed font-body text-justify font-medium ${textHindi}`}>
+                                    {section.content_hi}
+                                </p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
+            ))}
+
+            {/* Legacy Text */}
+            {!isNewFormat && (data.summary || data.text) && !data.sections && (
+              <div className={`p-6 rounded-2xl ${cardClass}`}>
+                  <div className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`} style={{ fontSize: '1em' }}>
+                      {data.summary ? (
+                          <p className={`font-medium leading-relaxed ${textBody}`}>{data.summary}</p>
+                      ) : (
+                          data.text && typeof data.text === 'string' && data.text.split('\n').map((para: string, i: number) => (
+                              <p key={i} className={`mb-4 font-medium leading-relaxed ${textBody}`}>{para}</p>
+                          ))
+                      )}
+                  </div>
+              </div>
             )}
-            
-            {/* SECTIONS in Summary View (Optional fallback if user expects to see them here too) */}
-            {sections && Array.isArray(sections) && sections.length > 0 && (
-              <div className="space-y-12 mt-12 pt-8 border-t border-gray-100 dark:border-zinc-800">
-                <h3 className="text-xl font-bold opacity-50 mb-4 text-center">Chapter Content</h3>
-                {sections.map((section: any, idx: number) => {
+
+            {/* Legacy Sections */}
+            {!isNewFormat && data.sections && Array.isArray(data.sections) && data.sections.length > 0 && (
+              <div className="space-y-12 mt-12 pt-8 border-t border-slate-200 dark:border-zinc-800">
+                {data.sections.map((section: any, idx: number) => {
                   let lines = section.lines;
                   if (!lines && section.content && typeof section.content === 'string') {
-                      lines = parseContentToLines(section.content);
+                      lines = parseLegacyContentToLines(section.content);
                   }
                   if (!lines || lines.length === 0) return null;
-
                   return (
                     <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500">
-                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
+                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${textHeading}`} style={{ fontSize: '1.2em' }}>
                         {section.title}
                       </h3>
                       <div className="space-y-4">
                         {lines.map((line: any, lIdx: number) => (
-                          <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
-                            <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
+                          <div key={lIdx} className={`p-6 rounded-2xl ${cardClass}`}>
+                            <p className={`mb-2 leading-relaxed font-display font-semibold ${textBody}`}>{line.englishLine}</p>
                             {line.hindiTranslation && (
-                              <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
+                              <p className={`text-[0.9em] leading-relaxed font-body font-medium ${textHindi}`}>
                                 {line.hindiTranslation}
                               </p>
                             )}
@@ -321,27 +507,30 @@ const ChapterSummary: React.FC = () => {
                 })}
               </div>
             )}
-
-            <div className="h-20"></div>
         </div>
     );
   };
 
+  let contentTitle = "";
+  if (chapter) {
+      const parsed = getParsedContent(chapter.content);
+      if (parsed.chapter_info?.topic) {
+          contentTitle = parsed.chapter_info.topic;
+      } else {
+          contentTitle = parsed.title || chapter.title;
+      }
+  }
+
   return (
     <div className={`relative h-full overflow-y-auto no-scrollbar transition-colors duration-700 ease-in-out ${getPageBaseColor()}`}>
        
-       {/* GRADIENT LAYER - Independently animated for smoothness */}
-       <div 
-         className={`absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-br from-blue-600 via-indigo-600 to-pink-500 transition-opacity duration-700 ease-in-out z-0 pointer-events-none ${
-             theme === 'default' ? 'opacity-100' : 'opacity-0'
-         }`}
-       />
-
-       {/* HEADER SECTION */}
-       <div className="relative z-10 pt-4 pb-16 px-4">
+       {/* GRADIENT HEADER */}
+       <div className={`relative z-10 pt-4 pb-8 px-4 bg-gradient-to-br shadow-lg mb-8 transition-colors duration-700 ${
+            contentTitle.includes('Noun') || location.state?.backPath?.includes('grammar')
+            ? 'from-amber-500 via-orange-500 to-amber-600'
+            : 'from-blue-600 via-indigo-600 to-indigo-700'
+         }`}>
          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            
-            {/* Left: Back & Title */}
             <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                 <button 
                     onClick={handleBack} 
@@ -349,37 +538,26 @@ const ChapterSummary: React.FC = () => {
                 >
                     <span className="material-symbols-outlined">arrow_back</span>
                 </button>
-                
-                <h1 
-                    className={`text-lg font-bold truncate transition-opacity duration-500 ${getHeaderTextColor()} ${theme !== 'default' ? 'opacity-90' : 'opacity-0'}`}
-                >
-                    {chapter?.title}
+                <h1 className={`text-lg font-bold truncate ${getHeaderTextColor()}`}>
+                    {contentTitle || chapter?.title}
                 </h1>
             </div>
 
-            {/* Right: Controls */}
             <div className="flex items-center gap-2 flex-shrink-0">
-                
-                {/* DIRECT ZOOM BUTTONS */}
                 <button
                     onClick={handleZoomOut}
                     disabled={fontSizeIndex === 0}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 border ${getHeaderButtonBg()} ${getHeaderTextColor()} ${fontSizeIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    aria-label="Decrease font size"
                 >
                     <span className="material-symbols-outlined filled-icon">remove</span>
                 </button>
-
                 <button
                     onClick={handleZoomIn}
                     disabled={fontSizeIndex === FONT_SIZES.length - 1}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 border ${getHeaderButtonBg()} ${getHeaderTextColor()} ${fontSizeIndex === FONT_SIZES.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    aria-label="Increase font size"
                 >
                     <span className="material-symbols-outlined filled-icon">add</span>
                 </button>
-
-                {/* THEME MENU TOGGLE */}
                 <div className="relative" ref={themeMenuRef}>
                     <button 
                         onClick={() => setShowThemeMenu(!showThemeMenu)}
@@ -387,76 +565,37 @@ const ChapterSummary: React.FC = () => {
                     >
                         <span className="material-symbols-outlined filled-icon">palette</span>
                     </button>
-
-                    {/* Theme Dropdown */}
                     {showThemeMenu && (
                         <div className="absolute right-0 top-full mt-3 w-64 bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-700 p-4 animate-in fade-in zoom-in-95 duration-200 origin-top-right z-50 text-gray-800 dark:text-gray-100">
-                            
-                            {/* Color Themes */}
-                            <div className="">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Color Mode</span>
-                                <div className="flex gap-2">
-                                    {/* Default Theme */}
-                                    <button 
-                                        onClick={() => setTheme('default')} 
-                                        className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'default' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}
-                                        title="Default"
-                                    >
-                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 shadow-sm"></div>
-                                    </button>
-                                    
-                                    {/* Sepia Theme */}
-                                    <button 
-                                        onClick={() => setTheme('sepia')} 
-                                        className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'sepia' ? 'border-[#8B5E3C] bg-[#f4ecd8]' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}
-                                        title="Sepia"
-                                    >
-                                        <div className="w-6 h-6 rounded-full bg-[#f4ecd8] border border-amber-900/10 shadow-sm"></div>
-                                    </button>
-                                    
-                                    {/* Dark Theme */}
-                                    <button 
-                                        onClick={() => setTheme('dark')} 
-                                        className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'dark' ? 'border-gray-400 bg-zinc-800' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}
-                                        title="Dark"
-                                    >
-                                        <div className="w-6 h-6 rounded-full bg-zinc-900 border border-gray-600 shadow-sm"></div>
-                                    </button>
-                                </div>
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Color Mode</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setTheme('default')} className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'default' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}>
+                                    <div className="w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm"></div>
+                                </button>
+                                <button onClick={() => setTheme('sepia')} className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'sepia' ? 'border-[#8B5E3C] bg-[#f4ecd8]' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}>
+                                    <div className="w-6 h-6 rounded-full bg-[#f4ecd8] border border-amber-900/10 shadow-sm"></div>
+                                </button>
+                                <button onClick={() => setTheme('dark')} className={`flex-1 h-12 rounded-xl border-2 transition-all flex items-center justify-center ${theme === 'dark' ? 'border-gray-400 bg-zinc-800' : 'border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-700'}`}>
+                                    <div className="w-6 h-6 rounded-full bg-zinc-900 border border-gray-600 shadow-sm"></div>
+                                </button>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
          </div>
-
-         {/* Immersive Title (Only in Default Theme) */}
-         <div 
-            className={`max-w-4xl mx-auto mt-6 text-center text-white transition-all duration-700 ${
-                theme === 'default' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
-            }`}
-         >
-             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-xs font-bold uppercase tracking-wider mb-3">
-                Chapter {chapter?.chapter_number}
-             </div>
-             <h1 className="text-3xl md:text-5xl font-bold leading-tight drop-shadow-md font-display px-2">
-                {chapter?.title}
-             </h1>
-         </div>
        </div>
 
-       {/* CONTENT SHEET */}
-       <div className={`relative z-10 -mt-8 rounded-t-[2.5rem] px-6 py-10 min-h-[85vh] transition-colors duration-700 ease-in-out ${getSheetStyle()}`}>
+       {/* CONTENT AREA */}
+       <div className="relative px-4 sm:px-6">
           {loading ? (
-             <div className="max-w-3xl mx-auto space-y-6 opacity-50">
+             <div className="max-w-3xl mx-auto space-y-6 opacity-50 pt-10">
                 <div className="h-4 bg-current rounded w-3/4 animate-pulse"></div>
                 <div className="h-4 bg-current rounded w-full animate-pulse"></div>
                 <div className="h-4 bg-current rounded w-5/6 animate-pulse"></div>
              </div>
           ) : (
-             <div className="animate-in slide-in-from-bottom-8 duration-500 delay-100">
-                {renderContent()}
-             </div>
+             renderContent()
           )}
        </div>
 

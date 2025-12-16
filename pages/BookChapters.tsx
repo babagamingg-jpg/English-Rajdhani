@@ -26,14 +26,43 @@ const BookChapters: React.FC = () => {
     }
   }
   
-  // Theme colors
-  const themeGradient = isRainbow 
+  // Header Theme Gradients
+  const headerGradient = isRainbow 
     ? (sectionType === 'poetry' 
         ? 'from-pink-500 to-rose-600 dark:from-pink-900 dark:to-rose-700' 
         : 'from-blue-500 to-indigo-600 dark:from-blue-900 dark:to-indigo-700')
     : 'from-teal-500 to-emerald-600 dark:from-teal-900 dark:to-emerald-700';
 
-  const accentColor = isRainbow ? (sectionType === 'poetry' ? 'pink' : 'blue') : 'teal';
+  // Card Theme Helpers
+  const getThemeStyles = () => {
+    if (sectionType === 'poetry') {
+      return {
+        borderLeft: 'border-l-pink-500',
+        numBoxBg: 'bg-pink-50 dark:bg-pink-900/20',
+        numBoxText: 'text-pink-600 dark:text-pink-400',
+        activeBtn: 'text-pink-600 bg-pink-50 hover:bg-pink-100',
+        iconHeader: 'history_edu'
+      };
+    } else if (bookType === 'story-of-english') {
+      return {
+        borderLeft: 'border-l-teal-500',
+        numBoxBg: 'bg-teal-50 dark:bg-teal-900/20',
+        numBoxText: 'text-teal-600 dark:text-teal-400',
+        activeBtn: 'text-teal-600 bg-teal-50 hover:bg-teal-100',
+        iconHeader: 'menu_book'
+      };
+    }
+    // Default Prose/Blue
+    return {
+      borderLeft: 'border-l-blue-500',
+      numBoxBg: 'bg-blue-50 dark:bg-blue-900/20',
+      numBoxText: 'text-blue-600 dark:text-blue-400',
+      activeBtn: 'text-blue-600 bg-blue-50 hover:bg-blue-100',
+      iconHeader: 'auto_stories'
+    };
+  };
+
+  const themeStyles = getThemeStyles();
 
   useEffect(() => {
     const fetchChapters = async () => {
@@ -50,74 +79,56 @@ const BookChapters: React.FC = () => {
         if (classError || !classData) {
           console.warn("Class not found:", classError?.message);
           setChapters([]);
+          setLoading(false);
           return;
         }
 
-        // 2. Fetch ALL chapters for this class (excluding grammar)
-        const { data, error } = await supabase
+        // 2. Determine Book Name based on route params
+        let targetBookName = '';
+        if (bookType === 'story-of-english') {
+            targetBookName = 'Story of English';
+        } else {
+            // Default to Rainbow
+            targetBookName = classId === '11' ? 'Rainbow Part 1' : 'Rainbow Part 2';
+        }
+
+        // 3. Get Book ID
+        const { data: bookData, error: bookError } = await supabase
+            .from('books')
+            .select('id')
+            .eq('class_id', classData.id)
+            .ilike('name', `%${targetBookName}%`)
+            .single();
+
+        if (bookError || !bookData) {
+             console.warn("Book not found:", bookError?.message);
+             setChapters([]);
+             setLoading(false);
+             return;
+        }
+
+        // 4. Fetch Chapters linked to this Book
+        let query = supabase
           .from('chapters')
           .select('*')
           .eq('class_id', classData.id)
-          .neq('section_type', 'grammar')
+          .eq('book_id', bookData.id)
+          .eq('section_type', 'textbook') // Explicitly ignore grammar
           .order('chapter_number', { ascending: true });
+
+        // 5. Apply Book Section Filter (Prose vs Poetry)
+        if (sectionType) {
+            // Ensure sectionType matches enum values (lowercase)
+            query = query.eq('book_section', sectionType.toLowerCase());
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.warn("Supabase fetch error:", error.message);
           setChapters([]); 
-        } else if (data) {
-           let filtered = data;
-           
-           if (isRainbow) {
-               // Rainbow Logic
-               if (sectionType) {
-                   const target = sectionType.toLowerCase();
-                   
-                   if (target === 'prose') {
-                        // Smart Prose Filter: Explicit Prose OR (Not Poetry AND Not Story of English types)
-                        // This ensures chapters labeled just "rainbow" or "textbook" show up in Prose by default
-                        filtered = data.filter(ch => {
-                            const type = ch.section_type?.toLowerCase() || '';
-                            const isPoetry = type.includes('poetry') || type.includes('poem');
-                            const isStoryOfEnglish = type.includes('story') || type.includes('drama') || type.includes('novel');
-                            
-                            return type.includes('prose') || (!isPoetry && !isStoryOfEnglish);
-                        });
-                   } else if (target === 'poetry') {
-                        filtered = data.filter(ch => {
-                            const type = ch.section_type?.toLowerCase() || '';
-                            return type.includes('poetry') || type.includes('poem');
-                        });
-                   } else {
-                        // Generic fallback
-                        filtered = data.filter(ch => (ch.section_type?.toLowerCase() || '').includes(target));
-                   }
-               } else {
-                   // Fallback: Show everything that isn't Story of English
-                   filtered = data.filter(ch => {
-                       const type = ch.section_type?.toLowerCase() || '';
-                       const isStoryOfEnglish = type.includes('story') || type.includes('drama') || type.includes('novel');
-                       return !isStoryOfEnglish;
-                   });
-               }
-           } else {
-               // Story of English Logic
-               // Show anything that is explicitly Story/Drama OR (Not Prose/Poetry/Rainbow)
-               filtered = data.filter(ch => {
-                   const type = ch.section_type?.toLowerCase() || '';
-                   
-                   // Explicit matches
-                   if (type.includes('story') || type.includes('drama') || type.includes('novel')) return true;
-                   
-                   // Strictly Exclude Rainbow types to prevent leak
-                   const isRainbowType = type.includes('prose') || type.includes('poetry') || type.includes('poem') || type.includes('rainbow');
-                   
-                   return !isRainbowType;
-               });
-           }
-           
-           // Ensure sorted by chapter number
-           filtered.sort((a, b) => a.chapter_number - b.chapter_number);
-           setChapters(filtered);
+        } else {
+           setChapters(data || []);
         }
       } catch (err) {
         console.error("Unexpected error fetching chapters:", err);
@@ -128,7 +139,7 @@ const BookChapters: React.FC = () => {
     };
 
     fetchChapters();
-  }, [classId, isRainbow, sectionType]);
+  }, [classId, bookType, sectionType]);
 
   const handleBack = () => {
     if (isRainbow) {
@@ -159,35 +170,29 @@ const BookChapters: React.FC = () => {
   };
 
   // Helper to determine badge style based on section type
-  const getSectionBadge = (sectionType: string) => {
-    const type = sectionType?.toLowerCase() || '';
+  const getSectionBadge = (section: string | undefined) => {
+    const type = section?.toLowerCase() || '';
     
-    if (type.includes('poetry') || type.includes('poem')) {
+    if (type === 'poetry') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 text-[10px] font-bold uppercase tracking-wide border border-pink-200 dark:border-pink-800/50">
-                <span className="material-symbols-outlined text-[12px]">history_edu</span>
-                Poetry
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 text-[10px] font-bold uppercase tracking-wide">
+                POETRY
             </span>
         );
     }
     
-    // Story of English / Supplementary
-    const isRainbowProse = type.includes('prose') || (!type.includes('story') && !type.includes('drama') && isRainbow);
-
-    if (!isRainbowProse) {
+    if (bookType === 'story-of-english') {
        return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wide border border-teal-200 dark:border-teal-800/50">
-                <span className="material-symbols-outlined text-[12px]">menu_book</span>
-                {sectionType || 'Supplementary'}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wide">
+                SUPPLEMENTARY
             </span>
         );
     }
 
     // Default to Prose
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase tracking-wide border border-blue-200 dark:border-blue-800/50">
-            <span className="material-symbols-outlined text-[12px]">article</span>
-            Prose
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase tracking-wide">
+            PROSE
         </span>
     );
   };
@@ -196,14 +201,14 @@ const BookChapters: React.FC = () => {
     <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto no-scrollbar relative">
       
       {/* Header Section */}
-      <div className={`bg-gradient-to-b ${themeGradient} pb-16 pt-6 px-6 relative z-0`}>
+      <div className={`bg-gradient-to-b ${headerGradient} pb-16 pt-6 px-6 relative z-0 shadow-lg`}>
          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/20 to-transparent opacity-50 z-[-1]"></div>
 
          <div className="max-w-2xl mx-auto w-full">
             <div className="flex justify-between items-start mb-6">
                 <button 
                     onClick={handleBack}
-                    className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
+                    className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/20"
                 >
                     <span className="material-symbols-outlined">arrow_back</span>
                 </button>
@@ -214,33 +219,35 @@ const BookChapters: React.FC = () => {
 
             <div className="flex flex-col items-center justify-center text-center space-y-4 mb-8">
                 <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-lg shadow-black/10">
-                    <span className="material-symbols-outlined text-white text-3xl">
-                       {isRainbow ? (sectionType === 'poetry' ? 'history_edu' : 'auto_stories') : 'history_edu'}
+                    <span className="material-symbols-outlined text-white text-3xl filled-icon">
+                       {themeStyles.iconHeader}
                     </span>
                 </div>
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-sm font-display">{bookTitle}</h1>
-                    <p className="text-white/80 text-sm font-medium">{bookSubtitle}</p>
+                    <p className="text-white/90 text-sm font-medium tracking-wide opacity-90">{bookSubtitle}</p>
                 </div>
             </div>
          </div>
       </div>
 
       {/* White Content Sheet */}
-      <div className="flex-1 bg-white dark:bg-zinc-900 rounded-t-[2.5rem] -mt-10 relative z-10 px-6 py-8 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+      <div className="flex-1 bg-gray-50 dark:bg-zinc-900 rounded-t-[2.5rem] -mt-10 relative z-10 px-4 sm:px-6 py-8 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
         <div className="max-w-2xl mx-auto w-full animate-in slide-in-from-bottom-8 duration-500">
             
             <div className="flex justify-between items-end mb-6 px-1">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white font-display">Chapters</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white font-display">
+                    {sectionType === 'poetry' ? 'Poems' : 'Chapters'}
+                </h2>
                 <div className="flex items-center gap-2">
-                   {loading && <span className={`text-xs text-${accentColor}-500 animate-pulse`}>Syncing...</span>}
-                   <span className="bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
+                   {loading && <span className="text-xs text-blue-500 animate-pulse">Syncing...</span>}
+                   <span className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
                      {loading ? '...' : `${chapters.length} Items`}
                    </span>
                 </div>
             </div>
 
-            <div className="space-y-4 pb-8">
+            <div className="space-y-4 pb-12">
                 {!loading && chapters.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                         <span className="material-symbols-outlined text-4xl mb-2 opacity-50">inbox</span>
@@ -251,60 +258,66 @@ const BookChapters: React.FC = () => {
                 {chapters.map((chapter, index) => (
                     <div 
                         key={chapter.id || index}
-                        className="group flex flex-col sm:flex-row sm:items-center p-4 bg-white dark:bg-zinc-800 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer gap-4 sm:gap-0"
+                        className={`group relative flex flex-col sm:flex-row sm:items-center p-5 bg-white dark:bg-zinc-800 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer gap-4 sm:gap-6 overflow-hidden border-l-[6px] ${themeStyles.borderLeft}`}
+                        onClick={(e) => handleReadClick(e, chapter.id)}
                     >
-                        <div className="flex items-center flex-grow min-w-0">
-                            {/* Number Box */}
-                            <div className="flex-shrink-0 w-12 h-12 bg-gray-50 dark:bg-zinc-700/50 rounded-xl flex items-center justify-center mr-4 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors border border-gray-100 dark:border-zinc-700">
-                                <span className="font-display font-bold text-lg text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors">
-                                    {chapter.chapter_number}
-                                </span>
-                            </div>
+                        {/* Number Box */}
+                        <div className={`flex-shrink-0 w-14 h-14 ${themeStyles.numBoxBg} rounded-2xl flex items-center justify-center border border-current border-opacity-10`}>
+                            <span className={`font-display font-bold text-2xl ${themeStyles.numBoxText}`}>
+                                {chapter.chapter_number}
+                            </span>
+                        </div>
                             
-                            <div className="flex-grow min-w-0 pr-2">
-                                <div className="mb-1">
-                                    {getSectionBadge(chapter.section_type)}
-                                </div>
-                                <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                    {chapter.title}
-                                </h3>
+                        {/* Text Content */}
+                        <div className="flex-grow min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 opacity-80">
+                                {getSectionBadge(chapter.book_section)}
                             </div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight group-hover:text-primary transition-colors">
+                                {chapter.title}
+                            </h3>
                         </div>
 
-                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0 ml-16 sm:ml-2">
-                            {/* Full Chapter Button */}
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 sm:self-center w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-t-0 border-dashed border-gray-100 dark:border-zinc-700">
+                            
+                            {/* Full Chapter (Read) - First Position */}
                             <button 
                                 onClick={(e) => handleReadClick(e, chapter.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors border border-orange-100 dark:border-orange-800/50"
+                                className={`flex-1 sm:flex-none flex flex-col items-center justify-center p-2 rounded-xl ${themeStyles.activeBtn} dark:bg-white/5 dark:text-white dark:hover:bg-white/10 transition-colors group/btn`}
+                                 title="Read Full Chapter"
                             >
-                                <span className="material-symbols-outlined text-[18px]">chrome_reader_mode</span>
-                                <span className="text-[11px] font-bold">Full Chapter</span>
+                                 <span className="material-symbols-outlined text-[24px] mb-0.5 filled-icon group-hover/btn:scale-110 transition-transform">chrome_reader_mode</span>
+                                 <span className="text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">Full Chapter</span>
                             </button>
 
-                            {/* Summary Button */}
+                            {/* Summary - Second Position */}
                             <button 
                                 onClick={(e) => handleSummaryClick(e, chapter.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors border border-blue-100 dark:border-blue-800/50"
+                                className="flex-1 sm:flex-none flex flex-col items-center justify-center p-2 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-400 hover:text-amber-600 transition-colors group/btn"
+                                title="Summary"
                             >
-                                <span className="material-symbols-outlined text-[18px]">summarize</span>
-                                <span className="text-[11px] font-bold">Summary</span>
+                                 <span className="material-symbols-outlined text-[24px] mb-0.5 group-hover/btn:scale-110 transition-transform">summarize</span>
+                                 <span className="text-[9px] font-bold uppercase tracking-wider">Summary</span>
                             </button>
                             
-                            {/* Test Button */}
+                            {/* Test - Third Position */}
                             <button 
                                 onClick={(e) => handleTestClick(e, chapter.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800 transition-colors border border-purple-100 dark:border-purple-800/50"
+                                className="flex-1 sm:flex-none flex flex-col items-center justify-center p-2 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-400 hover:text-purple-600 transition-colors group/btn"
+                                title="Quiz"
                             >
-                                <span className="material-symbols-outlined text-[18px]">quiz</span>
-                                <span className="text-[11px] font-bold">Test</span>
+                                 <span className="material-symbols-outlined text-[24px] mb-0.5 group-hover/btn:scale-110 transition-transform">quiz</span>
+                                 <span className="text-[9px] font-bold uppercase tracking-wider">Test</span>
                             </button>
+
                         </div>
                     </div>
                 ))}
 
                 {chapters.length > 0 && (
-                    <div className="text-center pt-4">
-                        <p className="text-xs text-gray-300 dark:text-zinc-700 font-medium">End of list</p>
+                    <div className="text-center pt-6 opacity-40">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">more_horiz</span>
                     </div>
                 )}
             </div>
