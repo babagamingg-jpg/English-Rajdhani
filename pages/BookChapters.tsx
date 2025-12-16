@@ -53,37 +53,71 @@ const BookChapters: React.FC = () => {
           return;
         }
 
-        // 2. Build Query
-        let query = supabase
+        // 2. Fetch ALL chapters for this class (excluding grammar)
+        const { data, error } = await supabase
           .from('chapters')
           .select('*')
           .eq('class_id', classData.id)
-          .neq('section_type', 'grammar'); // Always exclude grammar
-
-        if (isRainbow) {
-             // Rainbow logic: filter by prose/poetry if sectionType is present
-             if (sectionType === 'prose') {
-                 query = query.in('section_type', ['Prose', 'prose', 'Prose ']);
-             } else if (sectionType === 'poetry') {
-                 query = query.in('section_type', ['Poetry', 'poetry', 'Poetry ']);
-             } else {
-                 // Fallback: show everything if no specific section (shouldn't happen with new flow)
-                 query = query.in('section_type', ['Prose', 'Poetry', 'prose', 'poetry', 'Prose ', 'Poetry ']);
-             }
-        } else {
-             // Story of English contains everything else (typically 'Story of English' or 'Drama')
-             query = query.not('section_type', 'in', '("Prose","Poetry","prose","poetry","Prose ","Poetry ")');
-        }
-
-        const { data, error } = await query
-          .order('section_type', { ascending: false })
+          .neq('section_type', 'grammar')
           .order('chapter_number', { ascending: true });
 
         if (error) {
           console.warn("Supabase fetch error:", error.message);
           setChapters([]); 
-        } else {
-          setChapters(data || []);
+        } else if (data) {
+           let filtered = data;
+           
+           if (isRainbow) {
+               // Rainbow Logic
+               if (sectionType) {
+                   const target = sectionType.toLowerCase();
+                   
+                   if (target === 'prose') {
+                        // Smart Prose Filter: Explicit Prose OR (Not Poetry AND Not Story of English types)
+                        // This ensures chapters labeled just "rainbow" or "textbook" show up in Prose by default
+                        filtered = data.filter(ch => {
+                            const type = ch.section_type?.toLowerCase() || '';
+                            const isPoetry = type.includes('poetry') || type.includes('poem');
+                            const isStoryOfEnglish = type.includes('story') || type.includes('drama') || type.includes('novel');
+                            
+                            return type.includes('prose') || (!isPoetry && !isStoryOfEnglish);
+                        });
+                   } else if (target === 'poetry') {
+                        filtered = data.filter(ch => {
+                            const type = ch.section_type?.toLowerCase() || '';
+                            return type.includes('poetry') || type.includes('poem');
+                        });
+                   } else {
+                        // Generic fallback
+                        filtered = data.filter(ch => (ch.section_type?.toLowerCase() || '').includes(target));
+                   }
+               } else {
+                   // Fallback: Show everything that isn't Story of English
+                   filtered = data.filter(ch => {
+                       const type = ch.section_type?.toLowerCase() || '';
+                       const isStoryOfEnglish = type.includes('story') || type.includes('drama') || type.includes('novel');
+                       return !isStoryOfEnglish;
+                   });
+               }
+           } else {
+               // Story of English Logic
+               // Show anything that is explicitly Story/Drama OR (Not Prose/Poetry/Rainbow)
+               filtered = data.filter(ch => {
+                   const type = ch.section_type?.toLowerCase() || '';
+                   
+                   // Explicit matches
+                   if (type.includes('story') || type.includes('drama') || type.includes('novel')) return true;
+                   
+                   // Strictly Exclude Rainbow types to prevent leak
+                   const isRainbowType = type.includes('prose') || type.includes('poetry') || type.includes('poem') || type.includes('rainbow');
+                   
+                   return !isRainbowType;
+               });
+           }
+           
+           // Ensure sorted by chapter number
+           filtered.sort((a, b) => a.chapter_number - b.chapter_number);
+           setChapters(filtered);
         }
       } catch (err) {
         console.error("Unexpected error fetching chapters:", err);
@@ -126,7 +160,7 @@ const BookChapters: React.FC = () => {
 
   // Helper to determine badge style based on section type
   const getSectionBadge = (sectionType: string) => {
-    const type = sectionType.toLowerCase();
+    const type = sectionType?.toLowerCase() || '';
     
     if (type.includes('poetry') || type.includes('poem')) {
         return (
@@ -138,11 +172,13 @@ const BookChapters: React.FC = () => {
     }
     
     // Story of English / Supplementary
-    if (!type.includes('prose')) {
+    const isRainbowProse = type.includes('prose') || (!type.includes('story') && !type.includes('drama') && isRainbow);
+
+    if (!isRainbowProse) {
        return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-bold uppercase tracking-wide border border-teal-200 dark:border-teal-800/50">
                 <span className="material-symbols-outlined text-[12px]">menu_book</span>
-                {sectionType}
+                {sectionType || 'Supplementary'}
             </span>
         );
     }
@@ -236,6 +272,7 @@ const BookChapters: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2 self-end sm:self-center shrink-0 ml-16 sm:ml-2">
+                            {/* Full Chapter Button */}
                             <button 
                                 onClick={(e) => handleReadClick(e, chapter.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors border border-orange-100 dark:border-orange-800/50"
@@ -244,6 +281,7 @@ const BookChapters: React.FC = () => {
                                 <span className="text-[11px] font-bold">Full Chapter</span>
                             </button>
 
+                            {/* Summary Button */}
                             <button 
                                 onClick={(e) => handleSummaryClick(e, chapter.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors border border-blue-100 dark:border-blue-800/50"
@@ -252,6 +290,7 @@ const BookChapters: React.FC = () => {
                                 <span className="text-[11px] font-bold">Summary</span>
                             </button>
                             
+                            {/* Test Button */}
                             <button 
                                 onClick={(e) => handleTestClick(e, chapter.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800 transition-colors border border-purple-100 dark:border-purple-800/50"

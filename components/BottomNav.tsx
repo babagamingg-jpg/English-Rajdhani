@@ -4,6 +4,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const path = location.pathname.toLowerCase();
+
+  // Hide BottomNav on immersive pages where we need full screen focus
+  const isImmersive = path.includes('/quiz') || path.includes('/read') || path.includes('/summary');
+
+  if (isImmersive) {
+    return null;
+  }
 
   const getLinkClass = (path: string) => {
     const isActive = location.pathname === path;

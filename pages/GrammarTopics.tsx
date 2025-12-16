@@ -151,8 +151,8 @@ const GrammarTopics: React.FC = () => {
                                 onClick={(e) => handleSummaryClick(e, topic.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800 transition-colors border border-amber-100 dark:border-amber-800/50"
                             >
-                                <span className="material-symbols-outlined text-[18px]">summarize</span>
-                                <span className="text-[11px] font-bold">Summary</span>
+                                <span className="material-symbols-outlined text-[18px]">menu_book</span>
+                                <span className="text-[11px] font-bold">Concepts</span>
                             </button>
                             
                             <button 

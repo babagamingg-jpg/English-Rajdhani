@@ -1,5 +1,5 @@
-import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Home from './pages/Home';
 import AiTutor from './pages/AiTutor';
@@ -11,6 +11,18 @@ import GrammarTopics from './pages/GrammarTopics';
 import ChapterSummary from './pages/ChapterSummary';
 import ChapterQuiz from './pages/ChapterQuiz';
 import ChapterRead from './pages/ChapterRead';
+import './services/firebase'; // Initialize Firebase
+
+// Component to ensure window scrolls to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  
+  return null;
+};
 
 // Placeholder components for routes not fully implemented
 const PlaceholderPage: React.FC<{ title: string; icon: string }> = ({ title, icon }) => (
@@ -24,8 +36,26 @@ const PlaceholderPage: React.FC<{ title: string; icon: string }> = ({ title, ico
 );
 
 const App: React.FC = () => {
+  // Manual Loader Cleanup
+  useEffect(() => {
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+      // Small delay to ensure render is painted, then fade out
+      setTimeout(() => {
+        loader.style.opacity = '0';
+        loader.style.pointerEvents = 'none';
+        
+        // Remove from DOM after transition completes (0.5s match CSS)
+        setTimeout(() => {
+          loader.remove();
+        }, 500);
+      }, 100);
+    }
+  }, []);
+
   return (
     <Router>
+      <ScrollToTop />
       <div className="flex flex-col h-screen bg-background-light dark:bg-background-dark text-zinc-900 dark:text-zinc-100 font-display selection:bg-primary selection:text-white">
         
         {/* Main App Header (Desktop & Mobile) */}

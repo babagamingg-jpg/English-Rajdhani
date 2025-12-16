@@ -68,6 +68,37 @@ const ChapterRead: React.FC = () => {
     setFontSizeIndex(prev => Math.min(FONT_SIZES.length - 1, prev + 1));
   };
 
+  // Helper to parse content string if 'lines' array is missing
+  const parseContentToLines = (content: string) => {
+    if (!content) return [];
+    // Normalize newlines
+    const text = content.replace(/\r\n/g, '\n');
+    // Split by separator '---' handling various spacings
+    const parts = text.split(/\n\s*---\s*\n/);
+    
+    return parts.map(part => {
+        const engMarker = "**English Line:**";
+        const hindiMarker = "**Hindi Translation:**";
+        
+        const engIndex = part.indexOf(engMarker);
+        const hindiIndex = part.indexOf(hindiMarker);
+        
+        if (engIndex === -1) return null;
+        
+        let englishLine = "";
+        let hindiTranslation = "";
+        
+        if (hindiIndex !== -1) {
+            englishLine = part.substring(engIndex + engMarker.length, hindiIndex).trim();
+            hindiTranslation = part.substring(hindiIndex + hindiMarker.length).trim();
+        } else {
+            englishLine = part.substring(engIndex + engMarker.length).trim();
+        }
+        
+        return { englishLine, hindiTranslation };
+    }).filter(item => item !== null);
+  };
+
   // --- Dynamic Styles Helpers ---
 
   const getPageBaseColor = () => {
@@ -112,7 +143,7 @@ const ChapterRead: React.FC = () => {
       ? JSON.parse(chapter.content) 
       : chapter.content;
 
-    const { text, sections, author } = contentData;
+    const { text, sections, author, introduction } = contentData;
 
     // Card styling
     const cardClass = theme === 'default' 
@@ -137,30 +168,48 @@ const ChapterRead: React.FC = () => {
                 By {author}
               </div>
             )}
+
+            {/* Introduction */}
+            {introduction && (
+              <div className={`p-6 rounded-2xl ${theme === 'default' ? 'bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30' : 'border border-current border-opacity-30'}`}>
+                 <h3 className="font-bold mb-2 opacity-90 text-[1.1em]">Introduction</h3>
+                 <p className="opacity-85 leading-relaxed italic">{introduction}</p>
+              </div>
+            )}
             
             {/* SECTIONS: Line by Line Text */}
             {sections && Array.isArray(sections) && sections.length > 0 ? (
               <div className="space-y-12">
-                {sections.map((section: any, idx: number) => (
-                  <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
-                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
-                       {section.title}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {section.lines.map((line: any, lIdx: number) => (
-                        <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
-                           <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
-                           {line.hindiTranslation && (
-                             <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
-                               {line.hindiTranslation}
-                             </p>
-                           )}
-                        </div>
-                      ))}
+                {sections.map((section: any, idx: number) => {
+                  // Determine lines - either from 'lines' array or parsed from 'content' string
+                  let lines = section.lines;
+                  if (!lines && section.content && typeof section.content === 'string') {
+                      lines = parseContentToLines(section.content);
+                  }
+
+                  if (!lines || lines.length === 0) return null;
+
+                  return (
+                    <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
+                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
+                        {section.title}
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        {lines.map((line: any, lIdx: number) => (
+                          <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
+                            <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
+                            {line.hindiTranslation && (
+                              <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
+                                {line.hindiTranslation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
                 /* Fallback to simple text if no sections structure */

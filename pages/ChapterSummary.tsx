@@ -68,6 +68,35 @@ const ChapterSummary: React.FC = () => {
     setFontSizeIndex(prev => Math.min(FONT_SIZES.length - 1, prev + 1));
   };
 
+  // Helper to parse content string if 'lines' array is missing
+  const parseContentToLines = (content: string) => {
+    if (!content) return [];
+    const text = content.replace(/\r\n/g, '\n');
+    const parts = text.split(/\n\s*---\s*\n/);
+    
+    return parts.map(part => {
+        const engMarker = "**English Line:**";
+        const hindiMarker = "**Hindi Translation:**";
+        
+        const engIndex = part.indexOf(engMarker);
+        const hindiIndex = part.indexOf(hindiMarker);
+        
+        if (engIndex === -1) return null;
+        
+        let englishLine = "";
+        let hindiTranslation = "";
+        
+        if (hindiIndex !== -1) {
+            englishLine = part.substring(engIndex + engMarker.length, hindiIndex).trim();
+            hindiTranslation = part.substring(hindiIndex + hindiMarker.length).trim();
+        } else {
+            englishLine = part.substring(engIndex + engMarker.length).trim();
+        }
+        
+        return { englishLine, hindiTranslation };
+    }).filter(item => item !== null);
+  };
+
   // --- Dynamic Styles Helpers ---
 
   // Main page background (behind everything)
@@ -140,7 +169,7 @@ const ChapterSummary: React.FC = () => {
       : chapter.content;
 
     // Supports both old and new JSON formats
-    const { summary, keyPoints, importantTerms, text, sections, vocabulary, author } = contentData;
+    const { summary, keyPoints, importantTerms, text, sections, vocabulary, author, introduction } = contentData;
 
     // Helper for cards inside the content
     const cardClass = theme === 'default' 
@@ -150,8 +179,6 @@ const ChapterSummary: React.FC = () => {
     // Current pixel size for inline style
     const currentPixelSize = FONT_SIZES[fontSizeIndex];
     
-    // We apply fontSize via style to ensure exact sizing beyond tailwind limits
-    // We also inject the sepia color variables if needed
     const containerStyle = { 
         fontSize: `${currentPixelSize}px`, 
         lineHeight: '1.6',
@@ -163,45 +190,25 @@ const ChapterSummary: React.FC = () => {
           className={`space-y-10 max-w-3xl mx-auto transition-all duration-200`}
           style={containerStyle}
         >
-            {/* Author Name (New Format) */}
+            {/* Author Name */}
             {author && (
               <div className="text-center opacity-70 italic -mt-4 mb-8">
                 By {author}
               </div>
             )}
             
-            {/* NEW FORMAT: Sections (Line by Line) */}
-            {sections && Array.isArray(sections) && sections.length > 0 && (
-              <div className="space-y-12">
-                {sections.map((section: any, idx: number) => (
-                  <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
-                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
-                       {section.isImportant && <span className="material-symbols-outlined text-amber-500" title="Important for Exam">star</span>}
-                       {section.title}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {section.lines.map((line: any, lIdx: number) => (
-                        <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
-                           <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
-                           {line.hindiTranslation && (
-                             <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
-                               {line.hindiTranslation}
-                             </p>
-                           )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+            {/* Introduction (if viewing summary) */}
+            {introduction && (
+              <div className={`p-6 rounded-2xl ${theme === 'default' ? 'bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30' : 'border border-current border-opacity-30'}`}>
+                 <h3 className="font-bold mb-2 opacity-90 text-[1.1em]">Introduction</h3>
+                 <p className="opacity-85 leading-relaxed italic">{introduction}</p>
               </div>
             )}
 
-            {/* LEGACY FORMAT: Main Summary Text */}
+            {/* Main Summary Text */}
             {(summary || text) && !sections && (
               <div 
                 className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''} transition-colors duration-500`}
-                // We set explicit 1em here so it respects the parent's pixel size
                 style={{ fontSize: '1em' }}
               >
                   {summary ? (
@@ -219,7 +226,7 @@ const ChapterSummary: React.FC = () => {
               </div>
             )}
 
-            {/* LEGACY FORMAT: Key Points Section */}
+            {/* Key Points Section */}
             {keyPoints && Array.isArray(keyPoints) && keyPoints.length > 0 && (
                 <div className={`rounded-3xl p-6 md:p-8 ${cardClass} transition-colors duration-500`}>
                     <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-600 dark:text-indigo-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
@@ -236,19 +243,21 @@ const ChapterSummary: React.FC = () => {
                 </div>
             )}
 
-            {/* NEW FORMAT: Vocabulary (Array) */}
-            {vocabulary && Array.isArray(vocabulary) && vocabulary.length > 0 && (
+            {/* Vocabulary (Array - from 'vocabulary' or 'importantTerms') */}
+            {((vocabulary && Array.isArray(vocabulary)) || (importantTerms && Array.isArray(importantTerms))) && (
                 <div>
                     <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
                        <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {vocabulary.map((item: any, idx: number) => (
+                        {(vocabulary || importantTerms).map((item: any, idx: number) => (
                             <div key={idx} className={`rounded-2xl p-5 ${cardClass} transition-colors duration-500`}>
                                 <span className={`block font-bold mb-1 ${theme === 'default' ? 'text-emerald-700 dark:text-emerald-400' : ''}`} style={{ fontSize: '1.1em' }}>
                                     {item.term}
                                 </span>
-                                <span className="opacity-90 leading-relaxed text-[0.95em] block">{item.englishMeaning}</span>
+                                <span className="opacity-90 leading-relaxed text-[0.95em] block">
+                                    {item.englishMeaning || item.definition}
+                                </span>
                                 {item.hindiMeaning && (
                                    <span className={`opacity-75 leading-relaxed text-[0.85em] block mt-1 ${theme === 'default' ? 'text-gray-500 dark:text-gray-400' : ''}`}>
                                       {item.hindiMeaning}
@@ -261,7 +270,7 @@ const ChapterSummary: React.FC = () => {
             )}
 
             {/* LEGACY FORMAT: Vocabulary (Object) */}
-            {importantTerms && typeof importantTerms === 'object' && Object.keys(importantTerms).length > 0 && !vocabulary && (
+            {importantTerms && typeof importantTerms === 'object' && !Array.isArray(importantTerms) && Object.keys(importantTerms).length > 0 && !vocabulary && (
                 <div>
                     <h3 className={`font-bold mb-6 flex items-center gap-2 ${theme === 'default' ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-80'}`} style={{ fontSize: '1.2em' }}>
                        <span className="material-symbols-outlined" style={{ fontSize: '1.2em' }}>school</span> Vocabulary
@@ -277,6 +286,40 @@ const ChapterSummary: React.FC = () => {
                         ))}
                     </div>
                 </div>
+            )}
+            
+            {/* SECTIONS in Summary View (Optional fallback if user expects to see them here too) */}
+            {sections && Array.isArray(sections) && sections.length > 0 && (
+              <div className="space-y-12 mt-12 pt-8 border-t border-gray-100 dark:border-zinc-800">
+                <h3 className="text-xl font-bold opacity-50 mb-4 text-center">Chapter Content</h3>
+                {sections.map((section: any, idx: number) => {
+                  let lines = section.lines;
+                  if (!lines && section.content && typeof section.content === 'string') {
+                      lines = parseContentToLines(section.content);
+                  }
+                  if (!lines || lines.length === 0) return null;
+
+                  return (
+                    <div key={idx} className="animate-in slide-in-from-bottom-4 duration-500">
+                      <h3 className={`font-bold mb-4 flex items-center gap-2 ${theme === 'default' ? 'text-indigo-700 dark:text-indigo-300' : 'opacity-90'}`} style={{ fontSize: '1.2em' }}>
+                        {section.title}
+                      </h3>
+                      <div className="space-y-4">
+                        {lines.map((line: any, lIdx: number) => (
+                          <div key={lIdx} className={`p-5 rounded-2xl ${cardClass} hover:bg-opacity-80 transition-colors`}>
+                            <p className="font-medium mb-2 opacity-95 leading-relaxed font-display">{line.englishLine}</p>
+                            {line.hindiTranslation && (
+                              <p className={`text-[0.9em] ${theme === 'default' ? 'text-gray-600 dark:text-gray-400' : 'opacity-75'} leading-relaxed font-body`}>
+                                {line.hindiTranslation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             <div className="h-20"></div>
